@@ -26,13 +26,19 @@
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
       }
-      /* Mimic the jagged edge of a thermal printout for Receipt Generator */
-      .receipt-header {
-          background: linear-gradient(-45deg, white 16px, transparent 0) 0 16px, linear-gradient(45deg, white 16px, transparent 0) 0 16px;
-          background-repeat: repeat-x;
-          background-size: 32px 32px;
-          background-color: #fff;
-          padding-top: 2rem; /* space for the jagged edge effect */
+      .receipt-edge-top {
+        background: linear-gradient(-45deg, white 12px, transparent 0), linear-gradient(45deg, white 12px, transparent 0);
+        background-repeat: repeat-x;
+        background-position: left top;
+        background-size: 24px 24px;
+        height: 12px;
+      }
+      .receipt-edge-bottom {
+        background: linear-gradient(-45deg, transparent 12px, white 0), linear-gradient(45deg, transparent 12px, white 0);
+        background-repeat: repeat-x;
+        background-position: left bottom;
+        background-size: 24px 24px;
+        height: 12px;
       }
     </style>
   <script type="importmap">

@@ -1,9 +1,6 @@
-
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import type { BusinessAssets } from '../types';
 
-// For CDN-loaded library
 declare const html2pdf: any;
 
 interface LineItem {
@@ -24,37 +21,23 @@ const formatCurrency = (amount: number) => `Ksh ${currencyFormatter.format(amoun
 const QuoteGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
   const [logo, setLogo] = useState<string | null>(assets.logo);
   const [fromName, setFromName] = useState(assets.name);
-  const [fromAddress, setFromAddress] = useState(assets.address);
   const [toName, setToName] = useState('Client Company');
-  const [toAddress, setToAddress] = useState('456 Avenue, City, Country');
   const [quoteNumber, setQuoteNumber] = useState('QTE-001');
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [validUntil, setValidUntil] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'));
   const [isSharing, setIsSharing] = useState(false);
-
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: Date.now(), description: 'Service Description', quantity: 1, price: 1000 },
   ]);
 
   useEffect(() => {
     setFromName(assets.name);
-    setFromAddress(assets.address);
     setLogo(assets.logo);
   }, [assets]);
 
   const quotePreviewRef = useRef<HTMLDivElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const total = useMemo(() => lineItems.reduce((acc, item) => acc + item.quantity * item.price, 0), [lineItems]);
-
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setLogo(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const addLineItem = () => {
     setLineItems([...lineItems, { id: Date.now(), description: 'New Service or Item', quantity: 1, price: 0 }]);
@@ -65,11 +48,7 @@ const QuoteGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
   };
 
   const removeLineItem = (id: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter(item => item.id !== id));
-    } else {
-      setLineItems([{ id: Date.now(), description: '', quantity: 1, price: 0 }]);
-    }
+    setLineItems(lineItems.filter(item => item.id !== id));
   };
   
   const generatePdf = () => {
@@ -108,9 +87,7 @@ const QuoteGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
                 text: `Here is the quote from ${fromName}.`,
                 files: [file],
             });
-        } else {
-            throw new Error("Sharing not supported");
-        }
+        } else { throw new Error("Sharing not supported"); }
     } catch (error: any) {
         if (error.name !== 'AbortError') {
             console.error('Sharing failed:', error);
@@ -124,86 +101,96 @@ const QuoteGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
   return (
     <div className="bg-gray-100 min-h-screen font-sans">
       <div className="p-2 bg-white sticky top-[68px] z-10 shadow-sm border-b flex justify-between items-center">
-          <p className="text-xs text-gray-500">Quote</p>
+          <h2 className="font-bold text-gray-700">Quote Generator</h2>
           <div className="flex gap-2">
-            <button onClick={generatePdf} className="text-sm px-3 py-1 bg-gray-200 text-gray-800 font-bold rounded-lg">PDF</button>
-            <button onClick={handleShare} disabled={isSharing} className="text-sm px-3 py-1 bg-brand-dark text-white font-bold rounded-lg disabled:bg-gray-400">
+            <button onClick={generatePdf} className="text-sm px-3 py-1 bg-red-500 text-white font-bold rounded-lg">PDF</button>
+            <button onClick={handleShare} disabled={isSharing} className="text-sm px-3 py-1 bg-green-500 text-white font-bold rounded-lg disabled:bg-gray-400">
                 {isSharing ? 'Sharing...' : 'Share'}
             </button>
           </div>
       </div>
       
-      <div ref={quotePreviewRef}>
-        <div className="p-6 bg-white">
-            <header className="flex justify-between items-start mb-6">
-                <h2 className="text-4xl font-extrabold text-gray-800 pt-1">Quote</h2>
-                 <div className="w-1/3">
-                    <input type="file" ref={logoInputRef} onChange={handleLogoUpload} accept="image/*" className="hidden"/>
-                    <button onClick={() => logoInputRef.current?.click()} className="w-full h-20 border border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 text-center text-gray-500 text-xs hover:bg-gray-50">
-                        {logo ? <img src={logo} alt="logo" className="max-h-full max-w-full object-contain"/> : <><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6 mb-1"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l1.547-1.547a4.125 4.125 0 014.628-.018l2.97 2.656a1.125 1.125 0 001.31 0l3.076-2.656a4.125 4.125 0 014.628.018l1.547 1.547M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg><span>+ Logo</span></>}
-                    </button>
-                </div>
-            </header>
-            
-            <div className="flex flex-col space-y-2 mb-8">
-                <div className="flex justify-between w-full space-x-4 items-center">
-                    <label className="font-medium text-gray-600 whitespace-nowrap">Quote #:</label>
-                    <input value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)} type="text" className="w-2/3 text-right font-semibold p-2 focus:outline-none focus:bg-gray-100 rounded" />
-                </div>
-                <div className="flex justify-between w-full space-x-4 items-center">
-                    <label className="font-medium text-gray-600 whitespace-nowrap">Date:</label>
-                    <input value={date} onChange={e => setDate(e.target.value)} type="date" className="w-2/3 text-right font-semibold p-2 focus:outline-none focus:bg-gray-100 rounded" />
-                </div>
-                 <div className="flex justify-between w-full space-x-4 items-center">
-                    <label className="font-medium text-gray-600 whitespace-nowrap">Valid Until:</label>
-                    <input value={validUntil} onChange={e => setValidUntil(e.target.value)} type="date" className="w-2/3 text-right font-semibold p-2 focus:outline-none focus:bg-gray-100 rounded" />
-                </div>
+       <div className="p-4 space-y-6">
+        <div className="p-4 bg-white rounded-lg shadow-md border border-gray-200">
+            <h2 className="text-xl font-bold mb-4 text-gray-800">Quote Details</h2>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+                 <input value={fromName} onChange={e => setFromName(e.target.value)} type="text" placeholder="Your Business Name" className="p-2 border rounded-md" />
+                 <input value={toName} onChange={e => setToName(e.target.value)} type="text" placeholder="Client Name" className="p-2 border rounded-md" />
+                 <input value={quoteNumber} onChange={e => setQuoteNumber(e.target.value)} type="text" placeholder="Quote #" className="p-2 border rounded-md" />
+                 <input value={date} onChange={e => setDate(e.target.value)} type="date" className="p-2 border rounded-md" />
+                 <input value={validUntil} onChange={e => setValidUntil(e.target.value)} type="date" className="col-span-2 p-2 border rounded-md" />
             </div>
-
-            <section className="grid grid-cols-2 gap-8 mb-8">
+             <h3 className="text-lg font-semibold mt-4 mb-2">Items</h3>
+             <div className="space-y-2">
+             {lineItems.map((item) => (
+                 <div key={item.id} className="grid grid-cols-12 gap-2 items-center">
+                    <input value={item.description} onChange={e => updateLineItem(item.id, 'description', e.target.value)} placeholder="Description" className="col-span-4 p-2 border rounded-md text-sm"/>
+                    <input value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseInt(e.target.value) || 1)} type="number" placeholder="Qty" className="col-span-2 p-2 border rounded-md text-sm"/>
+                    <input value={item.price} onChange={e => updateLineItem(item.id, 'price', parseFloat(e.target.value) || 0)} type="number" placeholder="Price" className="col-span-3 p-2 border rounded-md text-sm"/>
+                    <p className="col-span-2 text-right text-sm font-semibold">{formatCurrency(item.quantity * item.price)}</p>
+                    <button onClick={() => removeLineItem(item.id)} className="text-red-500 text-xl font-bold"> &times; </button>
+                 </div>
+             ))}
+             </div>
+             <button onClick={addLineItem} className="mt-3 w-full p-2 bg-brand-dark text-white font-bold rounded-lg hover:bg-gray-700 text-sm">+ Add Item</button>
+        </div>
+      
+        <h2 className="text-lg font-semibold text-gray-800 text-center">Preview</h2>
+        <div ref={quotePreviewRef} className="bg-white p-8 rounded shadow-lg max-w-sm mx-auto border border-gray-200">
+            <header className="flex justify-between items-start border-b-2 border-dashed border-gray-300 pb-4 mb-4">
                 <div>
-                    <h3 className="text-xl font-medium text-gray-800 mb-2">From</h3>
-                    <input value={fromName} onChange={e => setFromName(e.target.value)} type="text" placeholder="Your Name/Company" className="w-full p-2 border rounded-md mb-2" />
-                    <input value={fromAddress} onChange={e => setFromAddress(e.target.value)} type="text" placeholder="Your Address" className="w-full p-2 border rounded-md" />
+                    <h1 className="text-3xl font-extrabold text-gray-800">QUOTE</h1>
+                    <p className="text-gray-500">#{quoteNumber}</p>
+                </div>
+                {logo && <img src={logo} alt="logo" className="max-h-16 max-w-[100px] object-contain"/>}
+            </header>
+
+            <section className="grid grid-cols-2 gap-8 mb-6 text-xs">
+                <div>
+                    <h3 className="font-bold text-gray-500 uppercase mb-1">PREPARED FOR</h3>
+                    <p className="font-semibold text-gray-800">{toName}</p>
                 </div>
                 <div>
-                    <h3 className="text-xl font-medium text-gray-800 mb-2">Prepared For</h3>
-                    <input value={toName} onChange={e => setToName(e.target.value)} type="text" placeholder="Client Name" className="w-full p-2 border rounded-md mb-2" />
-                    <input value={toAddress} onChange={e => setToAddress(e.target.value)} type="text" placeholder="Client Address" className="w-full p-2 border rounded-md" />
+                    <h3 className="font-bold text-gray-500 uppercase mb-1">PREPARED BY</h3>
+                    <p className="font-semibold text-gray-800">{fromName}</p>
                 </div>
             </section>
             
-             <section>
-                <h3 className="text-xl font-medium text-gray-800 mb-2">Item Details</h3>
-                {lineItems.map(item => (
-                    <div key={item.id} className="border border-gray-300 rounded-lg p-3 mb-3 bg-white space-y-2">
-                        <input type="text" value={item.description} onChange={e => updateLineItem(item.id, 'description', e.target.value)} placeholder="Item Description" className="w-full p-2 border-b font-semibold focus:outline-none" />
-                        <div className="flex items-center gap-2">
-                            <input value={item.price} onChange={e => updateLineItem(item.id, 'price', parseFloat(e.target.value) || 0)} type="number" placeholder="Price" className="p-2 border rounded w-1/3"/>
-                            <span className="text-gray-500">x</span>
-                            <input value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseInt(e.target.value) || 1)} type="number" placeholder="1" className="p-2 border rounded w-1/4"/>
-                            <span className="flex-grow text-right font-bold">{formatCurrency(item.quantity * item.price)}</span>
-                        </div>
-                        <button onClick={() => removeLineItem(item.id)} className="text-red-500 text-xs font-semibold">Remove</button>
-                    </div>
-                ))}
-                <button onClick={addLineItem} className="w-full p-2 mt-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600">+ Add Another Line Item</button>
+            <section>
+                <table className="w-full text-sm">
+                    <thead className="border-b-2 border-dashed border-gray-300">
+                        <tr className="text-left text-gray-500 font-semibold uppercase">
+                            <th className="py-2 pr-2">Description</th>
+                            <th className="py-2 text-center">Qty</th>
+                            <th className="py-2 text-right pl-2">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {lineItems.map(item => (
+                            <tr key={item.id} className="border-b border-dashed border-gray-200">
+                                <td className="py-2 pr-2 font-semibold text-gray-800">{item.description}</td>
+                                <td className="py-2 text-center">{item.quantity}</td>
+                                <td className="py-2 text-right pl-2">{formatCurrency(item.quantity * item.price)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </section>
 
-             <section className="mt-8 pt-4 border-t">
+            <section className="mt-6">
                 <div className="flex justify-end">
-                    <div className="w-full max-w-xs space-y-2">
-                         <div className="flex justify-between items-center text-xl font-bold border-t-2 border-blue-600 pt-2 mt-2">
-                            <span>TOTAL:</span>
-                            <span className="text-blue-700">{formatCurrency(total)}</span>
+                    <div className="w-full max-w-xs space-y-2 text-sm">
+                         <div className="flex justify-between items-center text-lg font-bold border-t-2 border-gray-800 pt-2 mt-2">
+                            <span>ESTIMATED TOTAL:</span>
+                            <span>{formatCurrency(total)}</span>
                          </div>
                     </div>
                 </div>
             </section>
-
-             <footer className="mt-12 text-center text-xs text-gray-500">
+            
+             <footer className="mt-12 text-center text-xs text-gray-500 border-t border-dashed border-gray-300 pt-4">
                 <p>This quote is valid until {new Date(validUntil).toLocaleDateString()}.</p>
-            </footer>
+             </footer>
         </div>
       </div>
     </div>

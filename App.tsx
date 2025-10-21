@@ -737,6 +737,10 @@ function App() {
   
   const handleTicketAcquired = (newTicket: Ticket) => {
     setMyTickets(prev => [...prev, newTicket]);
+    setNotification({
+      title: 'Ticket Confirmed!',
+      message: `Your ticket for "${newTicket.eventName}" is now available in "My Tickets".`
+    });
   };
 
   const handleAddBanner = (banner: Omit<SpecialBanner, 'id'>) => {
@@ -1079,18 +1083,20 @@ function App() {
           />
       )}
       
-      <main>
+      <main className="pb-20">
           {renderContent()}
       </main>
       
       {!isAuthenticated && !isAuthModalOpen && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-full px-4">
-            <button 
-            onClick={() => setAuthModalOpen(true)}
-            className="bg-brand-dark text-white font-bold py-3 px-6 rounded-full shadow-lg hover:bg-gray-700 transition-transform hover:scale-105 w-full"
-            >
-            Sign in to continue
-            </button>
+        <div className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto p-4 z-30 bg-gradient-to-t from-white to-transparent pointer-events-none">
+            <div className="pointer-events-auto">
+                <button 
+                onClick={() => setAuthModalOpen(true)}
+                className="bg-brand-dark text-white font-bold py-4 px-6 rounded-full shadow-lg hover:bg-gray-700 transition-transform hover:scale-105 w-full"
+                >
+                Sign in to continue
+                </button>
+            </div>
         </div>
       )}
 

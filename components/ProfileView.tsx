@@ -72,9 +72,13 @@ const CatalogueItemCard: React.FC<{item: CatalogueItem, onClick?: () => void}> =
 const MembersScroller: React.FC<{ members: Member[], selectedMemberId: number, onSelectMember: (member: Member) => void }> = ({ members, selectedMemberId, onSelectMember }) => {
     return (
         <div className="px-4 py-3 bg-gray-100 border-t border-b border-gray-200">
-            <div className="flex space-x-4 overflow-x-auto no-scrollbar">
+            <div className="flex space-x-2 overflow-x-auto no-scrollbar">
                 {members.map(member => (
-                    <button key={member.id} onClick={() => onSelectMember(member)} className="flex-shrink-0 flex flex-col items-center gap-1 text-center w-16">
+                    <button 
+                        key={member.id} 
+                        onClick={() => onSelectMember(member)} 
+                        className={`flex-shrink-0 flex flex-col items-center gap-1 text-center w-20 p-1 rounded-lg transition-all duration-200 ${selectedMemberId === member.id ? 'bg-brand-primary/10' : 'bg-transparent'}`}
+                    >
                         <div className={`w-16 h-16 rounded-full border-2 p-0.5 transition-all ${selectedMemberId === member.id ? 'border-brand-primary' : 'border-gray-300'}`}>
                             <img src={member.avatarUrl} alt={member.name} className="w-full h-full object-cover rounded-full" />
                         </div>
@@ -142,6 +146,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
     
     const isGroupProfile = profileData.profileType === 'group' && profileData.members && profileData.members.length > 0;
     const [selectedMember, setSelectedMember] = useState<Member | null>(isGroupProfile ? profileData.members![0] : null);
+    
+    // For smooth transitions
+    const [detailsKey, setDetailsKey] = useState(profileData.id);
+    const [isFading, setIsFading] = useState(false);
 
     // State for editable fields
     const [editedService, setEditedService] = useState(profileData.service);
@@ -149,6 +157,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
     const [editedLocation, setEditedLocation] = useState(profileData.location);
     const [editedCoverImage, setEditedCoverImage] = useState<string | null>(null);
     const [editedAvatar, setEditedAvatar] = useState<string | null>(null);
+    const [editedRate, setEditedRate] = useState(profileData.hourlyRate.toString());
+    const [editedRateType, setEditedRateType] = useState(profileData.rateType);
+
     const coverImageInputRef = useRef<HTMLInputElement>(null);
     const avatarImageInputRef = useRef<HTMLInputElement>(null);
     
@@ -190,6 +201,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
         location: editedLocation,
         coverImageUrl: editedCoverImage || profileData.coverImageUrl,
         avatarUrl: editedAvatar || profileData.avatarUrl,
+        hourlyRate: parseInt(editedRate, 10) || 0,
+        rateType: editedRateType,
       };
       onUpdate(updatedProfile);
       setIsEditing(false);
@@ -201,6 +214,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
         setEditedLocation(profileData.location);
         setEditedCoverImage(null);
         setEditedAvatar(null);
+        setEditedRate(profileData.hourlyRate.toString());
+        setEditedRateType(profileData.rateType);
         setIsEditing(false);
     }
     
@@ -266,6 +281,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
         } else {
             onJoin(profileData);
         }
+    };
+    
+    const handleMemberSelect = (member: Member) => {
+        setIsFading(true);
+        setTimeout(() => {
+            setSelectedMember(member);
+            setDetailsKey(member.id);
+            setIsFading(false);
+        }, 150);
     };
 
     const handleVerify = () => {
@@ -362,19 +386,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
                         </div>
                     )}
                  </div>
-                 {/* Profile Pic */}
-                 <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-4 border-white bg-gray-200 shadow-lg group">
-                    <img className="rounded-full object-cover w-full h-full" src={editedAvatar || profileData.avatarUrl} alt={profileData.name} />
-                    {isEditing && (
-                         <button onClick={() => avatarImageInputRef.current?.click()} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-all">
-                            Change
-                        </button>
-                    )}
-                </div>
+                 {/* Profile Pic or Group Avatars */}
+                 {!isGroupProfile && (
+                    <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-4 border-white bg-gray-200 shadow-lg group">
+                        <img className="rounded-full object-cover w-full h-full" src={editedAvatar || profileData.avatarUrl} alt={profileData.name} />
+                        {isEditing && (
+                            <button onClick={() => avatarImageInputRef.current?.click()} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-all">
+                                Change
+                            </button>
+                        )}
+                    </div>
+                 )}
             </div>
             
             {/* Profile Info */}
-            <div className="pt-16 text-center px-4">
+            <div className={`${isGroupProfile ? 'pt-6' : 'pt-16'} text-center px-4`}>
                 <div className="flex items-center justify-center space-x-2">
                     <h1 className="text-2xl font-bold text-brand-dark">{profileData.name}</h1>
                     {profileData.isVerified ? (
@@ -413,12 +439,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
                 <MembersScroller
                     members={profileData.members}
                     selectedMemberId={selectedMember?.id || 0}
-                    onSelectMember={setSelectedMember}
+                    onSelectMember={handleMemberSelect}
                 />
             )}
 
             {/* Stats */}
-            <div className="mt-4 flex justify-around items-center text-gray-600 border-t border-b border-gray-200 py-3">
+            <div key={detailsKey} className={`mt-4 flex justify-around items-center text-gray-600 border-t border-b border-gray-200 py-3 transition-opacity duration-150 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="text-center">
                     <div className="flex items-center justify-center space-x-1">
                         <StarIcon className="w-4 h-4 text-yellow-500" />
@@ -436,7 +462,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profileData, isOwner, isAuthe
                     <div className="text-center">
                         <div className="flex items-center justify-center space-x-1">
                         <RateIcon className="w-4 h-4 text-green-500" />
-                        <span className="font-bold text-brand-dark">{displayData.currency}{displayData.hourlyRate}/{rateSuffix[displayData.rateType]}</span>
+                         {isEditing && canEdit ? (
+                            <div className="flex items-center gap-1">
+                                <span className="font-bold text-brand-dark">{profileData.currency}</span>
+                                <input 
+                                    type="number"
+                                    value={editedRate}
+                                    onChange={e => setEditedRate(e.target.value)}
+                                    className="w-16 text-center bg-gray-100 border border-gray-300 rounded-md px-1 py-0.5"
+                                />
+                                <span>/</span>
+                                <select 
+                                    value={editedRateType} 
+                                    onChange={e => setEditedRateType(e.target.value as ServiceProvider['rateType'])}
+                                    className="text-xs bg-gray-100 border border-gray-300 rounded-md py-0.5"
+                                >
+                                    {Object.entries(rateSuffix).map(([key, value]) => (
+                                        <option key={key} value={key}>{value}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : (
+                           <span className="font-bold text-brand-dark">{displayData.currency}{displayData.hourlyRate}/{rateSuffix[displayData.rateType]}</span>
+                        )}
                     </div>
                     <p className="text-xs text-gray-500">Rate</p>
                 </div>

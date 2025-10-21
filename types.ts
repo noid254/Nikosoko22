@@ -58,15 +58,24 @@ export interface ServiceProvider {
 export interface Event {
     id: number;
     name: string;
-    date: string;
+    date: string; // Keep as ISO string for sorting/parsing
     location: string;
     description: string;
     coverImageUrl: string;
-    createdBy: string;
-    category: 'Music' | 'Conference' | 'Party' | 'Wedding' | 'Community';
-    entryFee: number;
+    createdBy: string; // This can be the organizer's name
+    category: 'Music' | 'Conference' | 'Party' | 'Wedding' | 'Community' | 'Arts' | 'Business' | 'Fashion' | 'Gaming';
+    price: number; // Renamed from entryFee
+    currency: string;
     ticketType: 'single' | 'multiple';
     distanceKm: number;
+    organizer: {
+        name: string;
+        avatarUrl: string;
+    };
+    attendees: {
+        avatarUrl: string;
+    }[];
+    teaserVideoUrl?: string;
 }
 
 export interface Ticket {
