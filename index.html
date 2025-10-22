@@ -4,21 +4,47 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Niko Soko</title>
+    
+    <!-- SEO Meta Tags -->
+    <title>Niko Soko - Events &amp; Tickets</title>
+    <meta name="description" content="Your gateway to local events and services. Discover events, book tickets, manage digital receipts for your assets, and connect with your community." />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nikosoko.app/" />
+    <meta property="og:title" content="Niko Soko - Events & Tickets" />
+    <meta property="og:description" content="Your gateway to local events and services. Discover events, book tickets, manage digital receipts for your assets, and connect with your community." />
+    <meta property="og:image" content="https://picsum.photos/seed/nikosoko-og/1200/630" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://nikosoko.app/" />
+    <meta property="twitter:title" content="Niko Soko - Events & Tickets" />
+    <meta property="twitter:description" content="Your gateway to local events and services. Discover events, book tickets, manage digital receipts for your assets, and connect with your community." />
+    <meta property="twitter:image" content="https://picsum.photos/seed/nikosoko-og/1200/630" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#111827" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/vite.svg"> <!-- Placeholder icon -->
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              'brand-primary': '#1F2937',
-              'brand-dark': '#1F2937',
+              'brand-primary': '#1f2937', // gray-800
+              'brand-dark': '#000000',    // black
             },
           },
         },
       }
     </script>
     <style>
+      body {
+        background-color: #F9FAFB; /* bg-gray-50 */
+      }
       .no-scrollbar::-webkit-scrollbar {
         display: none;
       }
@@ -27,18 +53,25 @@
         scrollbar-width: none;  /* Firefox */
       }
       .receipt-edge-top {
-        background: linear-gradient(-45deg, white 12px, transparent 0), linear-gradient(45deg, white 12px, transparent 0);
+        background: linear-gradient(-45deg, #F9FAFB 12px, transparent 0), linear-gradient(45deg, #F9FAFB 12px, transparent 0);
         background-repeat: repeat-x;
         background-position: left top;
         background-size: 24px 24px;
         height: 12px;
       }
       .receipt-edge-bottom {
-        background: linear-gradient(-45deg, transparent 12px, white 0), linear-gradient(45deg, transparent 12px, white 0);
+        background: linear-gradient(-45deg, transparent 12px, #F9FAFB 0), linear-gradient(45deg, transparent 12px, #F9FAFB 0);
         background-repeat: repeat-x;
         background-position: left bottom;
         background-size: 24px 24px;
         height: 12px;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .content-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
       }
     </style>
   <script type="importmap">
@@ -46,14 +79,26 @@
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
   }
 }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
-  <body>
+  <body class="bg-gray-50">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(registration => {
+            console.log('SW registered: ', registration);
+          }).catch(registrationError => {
+            console.log('SW registration failed: ', registrationError);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

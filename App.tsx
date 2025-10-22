@@ -8,22 +8,25 @@ import SuperAdminDashboard, { AdminPage } from './components/SuperAdminDashboard
 import NotificationModal from './components/NotificationModal';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import EventsPage from './components/EventsPage';
+import CreateEventView from './components/CreateEventView';
 import GatePass from './components/GatePass';
 import MyTicketsView from './components/MyTicketsView';
 import CatalogueView from './components/CatalogueView';
 import InvoiceHub from './components/InvoiceHub';
 import MyDocumentsView from './components/MyDocumentsView';
 import QuoteGenerator from './components/QuoteGenerator';
-import BusinessAssets from './components/BusinessAssets';
+import BrandKitView from './components/BusinessAssets';
 import SearchPage from './components/SearchPage';
 import BookingModal from './components/BookingModal';
 import ReceiptGenerator from './components/ReceiptGenerator';
 import InboxView from './components/InboxView';
+import ScanDocumentView from './components/ScanDocumentView';
+import DocumentDetailView from './components/DocumentDetailView';
+import LoadingSpinner from './components/LoadingSpinner';
 import * as api from './services/api';
-import { CATEGORIES_DATA } from './constants';
-import type { ServiceProvider, Ticket, CatalogueItem, Document, Invitation, BusinessAssets as BusinessAssetsType, SpecialBanner, InboxMessage } from './types';
+import type { ServiceProvider, Ticket, CatalogueItem, Document, Invitation, BusinessAssets as BusinessAssetsType, SpecialBanner, InboxMessage, Event } from './types';
 
-type ViewMode = 'main' | 'profile' | 'signup' | 'admin' | 'invoice' | 'events' | 'gatepass' | 'contacts' | 'flagged' | 'myTickets' | 'catalogue' | 'invoiceHub' | 'quoteGenerator' | 'myDocuments' | 'search' | 'assets' | 'receiptGenerator' | 'inbox';
+type ViewMode = 'main' | 'profile' | 'signup' | 'admin' | 'invoice' | 'events' | 'createEvent' | 'gatepass' | 'contacts' | 'flagged' | 'myTickets' | 'catalogue' | 'invoiceHub' | 'quoteGenerator' | 'myDocuments' | 'search' | 'brandKit' | 'receiptGenerator' | 'inbox' | 'scanDocument' | 'documentDetail';
 type QuickFilter = { type: 'category' | 'service'; value: string } | null;
 
 const JoinSaccoModal: React.FC<{
@@ -58,7 +61,7 @@ const ComingSoonModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
     </div>
 );
 
-const TopHeader: React.FC<{
+const AppHeader: React.FC<{
   onMenuClick: () => void;
   onBackClick: () => void;
   viewMode: ViewMode;
@@ -73,7 +76,7 @@ const TopHeader: React.FC<{
 }> = ({ onMenuClick, onBackClick, viewMode, searchTerm, setSearchTerm, hasNotification, onNotificationClick, isScrolled, isAuthenticated, onAuthClick, onSearchFocus }) => {
   
   const isTransparent = viewMode === 'main' && !isScrolled;
-  const showHeaderSearch = (viewMode === 'main' && isScrolled) || ['search', 'events'].includes(viewMode);
+  const showHeaderSearch = (viewMode === 'main' && isScrolled) || ['search'].includes(viewMode);
 
   const handleProtectedClick = (action: () => void) => {
       if (!isAuthenticated) {
@@ -87,12 +90,12 @@ const TopHeader: React.FC<{
     <div className="relative">
         <input 
             type="text" 
-            placeholder={viewMode === 'events' ? "Search events..." : "I am looking for.."}
+            placeholder={"I am looking for.."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={onSearchFocus}
             autoFocus={viewMode === 'search'}
-            className={`w-full py-2 pl-4 pr-10 text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-brand-primary bg-gray-100 text-gray-800 placeholder-gray-500`}
+            className={`w-full py-2 pl-4 pr-10 text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-gray-800 bg-gray-100 text-gray-800 placeholder-gray-500`}
         />
         <svg className={`w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
     </div>
@@ -124,7 +127,7 @@ const TopHeader: React.FC<{
             <div className="flex-shrink-0 w-10 text-right">
                 <button onClick={() => handleProtectedClick(onNotificationClick)} className={`relative p-2 transition-colors ${isTransparent ? 'text-white' : 'text-gray-700'}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                    {hasNotification && <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500" />}
+                    {hasNotification && <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-green-500" />}
                 </button>
             </div>
         </div>
@@ -133,13 +136,37 @@ const TopHeader: React.FC<{
 };
 
 export const CategoryFilter: React.FC<{
+    categories: string[];
     quickFilter: QuickFilter;
     setQuickFilter: React.Dispatch<React.SetStateAction<QuickFilter>>;
     isAuthenticated: boolean;
     onAuthClick: () => void;
-}> = ({ quickFilter, setQuickFilter, isAuthenticated, onAuthClick }) => {
+}> = ({ categories, quickFilter, setQuickFilter, isAuthenticated, onAuthClick }) => {
     const [view, setView] = useState<'parents' | 'children'>('parents');
     const [selectedParent, setSelectedParent] = useState<string | null>('Home');
+    const [subCategories, setSubCategories] = useState<string[]>([]);
+
+
+    useEffect(() => {
+        // This is a mock of fetching sub-categories.
+        // In a real app, you might make an API call here.
+        const getSubCategories = (parent: string) => {
+            const allSubs: Record<string, string[]> = {
+                'Home': ['Electronics Expert', 'Professional Painter', 'Mama Fua (Laundry)', 'Electrician', 'Plumber'],
+                'Transport': ['Boda Boda Rider', 'Taxi Driver', 'Moving Company'],
+                'Emergency': ['Emergency Medical Services', 'Fire & Rescue'],
+                'Gas': ['Gas Delivery', 'Gas Refill Station'],
+                'Event': ['Event Planning & Catering', 'Wedding Planner'],
+                'Personal': ['Makeup Artist', 'Personal Trainer', 'Academic Tutor'],
+                'Delivery': ['Courier Services', 'Food Delivery'],
+                'Travel': ['Tour Guide'],
+            };
+            return allSubs[parent] || [];
+        }
+        if (selectedParent) {
+            setSubCategories(getSubCategories(selectedParent));
+        }
+    }, [selectedParent]);
 
     const handleProtectedClick = (action: () => void) => {
         if (!isAuthenticated) {
@@ -163,7 +190,7 @@ export const CategoryFilter: React.FC<{
     }
     
     const parentButtonClasses = (category: string) => {
-        const isActive = selectedParent === category;
+        const isActive = selectedParent === category && view === 'children';
         return `px-3 py-1 text-xs font-bold rounded-full flex-shrink-0 border transition-colors ${isActive ? 'bg-brand-dark text-white border-brand-dark' : 'bg-white text-gray-700 border-gray-200'}`;
     };
     
@@ -176,7 +203,7 @@ export const CategoryFilter: React.FC<{
         <div className="py-2 px-3">
             {view === 'parents' ? (
                  <div className="flex space-x-3 overflow-x-auto no-scrollbar">
-                    {Object.keys(CATEGORIES_DATA).map(cat => (
+                    {categories.map(cat => (
                         <button 
                             key={cat} 
                             onClick={() => handleProtectedClick(() => handleParentClick(cat))}
@@ -191,7 +218,7 @@ export const CategoryFilter: React.FC<{
                      <button onClick={() => handleProtectedClick(handleBackToParents)} className={`px-3 py-1 text-[11px] font-medium rounded-full flex-shrink-0 transition-colors bg-gray-200 text-gray-800`}>
                         &larr; All
                     </button>
-                    {selectedParent && CATEGORIES_DATA[selectedParent]?.map(subCat => (
+                    {subCategories.map(subCat => (
                         <button 
                             key={subCat} 
                             onClick={() => handleProtectedClick(() => handleChildClick(subCat))}
@@ -207,36 +234,30 @@ export const CategoryFilter: React.FC<{
 }
 
 // --- Icons for MainPage Actions ---
-const InvoiceIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-const GatepassIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6.5-1H11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-1.5m-1 0V9a2 2 0 012-2h2a2 2 0 012 2v1.5m-7.5 4.5v2a2 2 0 002 2h2a2 2 0 002-2v-2" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01" /></svg>;
-const EventsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-const MegaphoneIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-2.236 9.168-5.514C18.118 1.94 18 2.684 18 3.5A3.5 3.5 0 0114.5 7H11" /></svg>;
-
+const DocsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
+const GatepassIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.27.977-3.632V8.528c0-2.28-1.47-4.243-3.588-4.832A12.015 12.015 0 0012 3.5c-2.433 0-4.66.736-6.412 2.001A9.44 9.44 0 002.5 11.528V14c0 1.657.48 3.19 1.3 4.5" /></svg>;
+const EventsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
 
 const MainPage: React.FC<{ 
     providers: ServiceProvider[];
     onSelectProvider: (provider: ServiceProvider) => void;
-    onInvoiceClick: () => void;
-    onEventsClick: () => void;
-    onGatepassClick: () => void;
+    onViewModeChange: (viewMode: ViewMode) => void;
     isAuthenticated: boolean;
     onAuthClick: () => void;
     onSearchClick: () => void;
-    isLoading: boolean;
-    error: string | null;
-}> = ({ providers, onSelectProvider, onInvoiceClick, onEventsClick, onGatepassClick, isAuthenticated, onAuthClick, onSearchClick, isLoading, error }) => {
+}> = ({ providers, onSelectProvider, onViewModeChange, isAuthenticated, onAuthClick, onSearchClick }) => {
     
     const mainActions = [
-        { name: 'Documents', icon: <InvoiceIcon/>, action: onInvoiceClick },
-        { name: 'Events', icon: <EventsIcon/>, action: onEventsClick },
-        { name: 'Gatepass', icon: <GatepassIcon/>, action: onGatepassClick },
+        { name: 'Invoice Hub', icon: <DocsIcon/>, view: 'invoiceHub' },
+        { name: 'Events', icon: <EventsIcon/>, view: 'events' },
+        { name: 'Karibu', icon: <GatepassIcon/>, view: 'gatepass' },
     ];
     
-    const handleProtectedClick = (action: () => void) => {
+    const handleProtectedClick = (view: ViewMode) => {
         if (!isAuthenticated) {
             onAuthClick();
         } else {
-            action();
+            onViewModeChange(view);
         }
     };
     
@@ -244,8 +265,8 @@ const MainPage: React.FC<{
          <div className="bg-gray-100 pb-28 min-h-screen">
             {/* Banner */}
             <div className="relative h-64 bg-brand-dark text-white flex flex-col justify-center items-center text-center p-6">
-                <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1599493345842-c423c103eb7c?q=80&w=1974&auto=format&fit=crop')` }}></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/20"></div>
+                <div className="absolute inset-0 bg-cover bg-center opacity-50" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1599493345842-c423c103eb7c?q=80&w=1974&auto=format&fit=crop')` }}></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20"></div>
                 <div className="relative z-10 w-full pt-10">
                     <h1 className="text-5xl font-extrabold tracking-tighter text-white" style={{fontFamily: 'sans-serif'}}>niko</h1>
                     <h1 className="text-5xl font-extrabold tracking-tighter text-white -mt-2" style={{fontFamily: 'sans-serif'}}>soko</h1>
@@ -268,11 +289,11 @@ const MainPage: React.FC<{
                 <div className="space-y-4">
                      <div>
                         <h2 className="text-lg font-bold text-gray-800 mb-3">Tool Box</h2>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             {mainActions.map(action => (
-                                <button key={action.name} onClick={() => handleProtectedClick(action.action)} className="bg-white p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 active:scale-95 text-center">
-                                    <div className="bg-gray-100 p-3 rounded-full text-brand-primary">{action.icon}</div>
-                                    <h3 className="font-semibold text-gray-800 text-xs">{action.name}</h3>
+                                <button key={action.name} onClick={() => handleProtectedClick(action.view as ViewMode)} className="bg-white p-3 rounded-xl shadow-sm flex flex-col items-center justify-center gap-2 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 active:scale-95 text-center">
+                                    <div className="bg-gray-100 p-4 rounded-full text-gray-800">{action.icon}</div>
+                                    <h3 className="font-semibold text-gray-800 text-xs leading-tight">{action.name}</h3>
                                 </button>
                             ))}
                         </div>
@@ -281,25 +302,14 @@ const MainPage: React.FC<{
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <h2 className="text-lg font-bold text-gray-800">Nearby Services</h2>
-                            <button onClick={onSearchClick} className="text-sm font-semibold text-brand-primary hover:underline">View All</button>
+                            <button onClick={onSearchClick} className="text-sm font-semibold text-gray-800 hover:underline">View All</button>
                         </div>
-                        {isLoading ? (
-                             <div className="flex justify-center items-center p-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-dark"></div>
-                            </div>
-                        ) : error ? (
-                             <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
-                                <p className="font-semibold">Could not load services</p>
-                                <p className="text-sm">{error}</p>
-                            </div>
-                        ) : (
-                             <div className="grid grid-cols-2 gap-4">
-                                {providers.map(provider => (
-                                    <ServiceCard key={provider.id} provider={provider} onClick={() => onSelectProvider(provider)} />
-                                ))}
-                                {providers.length === 0 && <p className="col-span-2 text-center text-gray-500 mt-8">No services found. Try adjusting your search.</p>}
-                            </div>
-                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                            {providers.map(provider => (
+                                <ServiceCard key={provider.id} provider={provider} onClick={() => onSelectProvider(provider)} />
+                            ))}
+                            {providers.length === 0 && <p className="col-span-2 text-center text-gray-500 mt-8">No services found. Try adjusting your search.</p>}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -458,6 +468,7 @@ function App() {
   const [isComingSoonModalOpen, setIsComingSoonModalOpen] = useState(false);
   
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [allCatalogueItems, setAllCatalogueItems] = useState<CatalogueItem[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [specialBanners, setSpecialBanners] = useState<SpecialBanner[]>([]);
@@ -465,6 +476,7 @@ function App() {
   const [myTickets, setMyTickets] = useState<Ticket[]>([]);
   const [myCatalogueItems, setMyCatalogueItems] = useState<CatalogueItem[]>([]);
   const [myDocuments, setMyDocuments] = useState<Document[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [businessAssets, setBusinessAssets] = useState<BusinessAssetsType>({
     name: 'Your Company Name',
@@ -486,11 +498,11 @@ function App() {
         try {
             const [
                 providersData, catalogueData, docsData, invitesData, 
-                bannersData, inboxData, categoriesData
+                bannersData, inboxData, categoriesData, eventsData
             ] = await Promise.all([
                 api.getProviders(), api.getCatalogueItems(), api.getDocuments(),
                 api.getInvitations(), api.getSpecialBanners(), api.getInboxMessages(),
-                api.getCategories(),
+                api.getCategories(), api.getEvents()
             ]);
             setProviders(providersData);
             setAllCatalogueItems(catalogueData);
@@ -499,6 +511,7 @@ function App() {
             setSpecialBanners(bannersData);
             setInboxMessages(inboxData);
             setCategories(categoriesData);
+            setAllEvents(eventsData);
         } catch (error) {
             console.error("Failed to load initial data", error);
             setError("Failed to connect to the server. Please check your connection and try again.");
@@ -525,8 +538,6 @@ function App() {
 
 
   const handleLogin = (data: api.VerifyOtpResponse) => {
-    // In a real app, you would save the data.token to localStorage/sessionStorage
-    // and use it for authenticated API requests.
     setIsAuthenticated(true);
     setIsSuperAdmin(data.isSuperAdmin);
     
@@ -691,8 +702,13 @@ function App() {
   };
   
   const handleBack = () => {
-      if (['invoice', 'quoteGenerator', 'myDocuments', 'assets', 'receiptGenerator'].includes(viewMode)) {
-          setViewMode('invoiceHub');
+      if (['invoice', 'quoteGenerator', 'myDocuments', 'brandKit', 'receiptGenerator', 'createEvent'].includes(viewMode)) {
+          setViewMode(viewMode === 'createEvent' ? 'events' : 'invoiceHub');
+          return;
+      }
+       if (viewMode === 'scanDocument' || viewMode === 'documentDetail') {
+          setSelectedDocument(null);
+          setViewMode('myDocuments');
           return;
       }
       if (['invoiceHub', 'search', 'inbox'].includes(viewMode)) {
@@ -864,14 +880,109 @@ function App() {
       setNotification({ title: "Coming Soon", message: "Full voting functionality from the inbox is being finalized. For now, please coordinate with other leaders and have an admin approve the request from the Admin Dashboard." });
     };
 
-    const handleCreateInvitation = async (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'hostName'>) => {
-        const newInvitation = await api.createInvitation(data);
+    const handleCreateInvitation = async (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'hostName' | 'type'>) => {
+        const newInvitation = await api.createInvitation({
+            ...data,
+            hostName: currentUser?.name || '',
+        }, 'Invite');
         setInvitations(prev => [newInvitation, ...prev]);
     };
 
-    const handleUpdateInvitationStatus = async (id: string, status: 'Canceled' | 'Used') => {
+     const handleCreateKnock = async (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'type'>) => {
+        const newKnock = await api.createInvitation(data, 'Knock');
+        setInvitations(prev => [newKnock, ...prev]);
+        setNotification({
+            title: 'Request Sent!',
+            message: `Your request to visit ${data.hostName} at apartment ${data.hostApartment} has been sent.`,
+        });
+    };
+
+    const handleUpdateInvitationStatus = async (id: string, status: Invitation['status']) => {
         const updatedInvitation = await api.updateInvitation(id, status);
         setInvitations(prev => prev.map(inv => inv.id === id ? updatedInvitation : inv));
+    };
+    
+    const handleScanNewDocument = () => {
+        setViewMode('scanDocument');
+    };
+
+    const handleSelectDocument = (doc: Document) => {
+        setSelectedDocument(doc);
+        setViewMode('documentDetail');
+    };
+
+    const handleAddDocument = async (newDocData: Omit<Document, 'id'>) => {
+        const newDoc = await api.addDocument(newDocData);
+        setMyDocuments(prev => [newDoc, ...prev]);
+        setViewMode('myDocuments');
+        setNotification({
+            title: 'Document Saved',
+            message: `Your ${newDoc.type} #${newDoc.number} has been successfully saved.`
+        });
+    };
+
+    const handleSaveGeneratedReceipt = async (docData: Omit<Document, 'id'>) => {
+        const newDoc = await api.addDocument(docData);
+        setMyDocuments(prev => [newDoc, ...prev]);
+        setSelectedDocument(newDoc);
+        setViewMode('documentDetail');
+        setNotification({
+            title: 'Receipt Saved as Asset',
+            message: `Your new asset has been saved to My Documents.`
+        });
+    };
+
+    const handleUpdateDocument = async (updatedDoc: Document) => {
+        const result = await api.updateDocument(updatedDoc);
+        setMyDocuments(prev => prev.map(d => d.id === result.id ? result : d));
+        if (selectedDocument && selectedDocument.id === result.id) {
+            setSelectedDocument(result);
+        }
+        setNotification({ title: 'Document Updated', message: `Status for ${result.type} #${result.number} has been updated.`});
+    };
+
+    const handleCreateEvent = async (eventData: Omit<Event, 'id'>) => {
+        const newEvent = await api.addEvent(eventData);
+        setAllEvents(prev => [newEvent, ...prev]);
+        setViewMode('events');
+        setNotification({ title: 'Event Published!', message: `Your event "${newEvent.name}" is now live.`});
+    };
+    
+    const handleMerchOrder = (itemName: string) => {
+        setNotification({
+            title: "Quote Requested",
+            message: `Your request for a quote on "${itemName}" has been sent to our branding team. They will contact you shortly.`
+        });
+    };
+    
+    const handleAssetTransferResponse = async (documentId: string, decision: 'accept' | 'deny') => {
+        if (!currentUser || !currentUser.id) return;
+        
+        const updatedDoc = await api.finalizeAssetTransfer(documentId, decision, currentUser.id);
+        
+        setMyDocuments(prev => {
+            if(decision === 'accept') {
+                return [...prev, updatedDoc]; // Add to new owner's docs
+            } else {
+                return prev.map(d => d.id === updatedDoc.id ? updatedDoc : d); // Or just update status for original owner
+            }
+        });
+        
+        // Remove the action message from inbox
+        setInboxMessages(prev => prev.filter(m => !(m.action?.type === 'assetTransfer' && m.action.documentId === documentId)));
+        
+        setNotification({
+            title: `Transfer ${decision === 'accept' ? 'Accepted' : 'Denied'}`,
+            message: `You have ${decision === 'accept' ? 'accepted' : 'denied'} the asset transfer.`
+        });
+    };
+    
+    const handleActionFromInbox = (type: 'saccoJoinRequest' | 'assetTransfer', payload: any) => {
+        if (type === 'saccoJoinRequest') {
+             handleSaccoVoteAction(payload.orgId, payload.reqId, payload.action, payload.leaderPhone);
+        } else if (type === 'assetTransfer') {
+             handleAssetTransferResponse(payload.documentId, payload.decision);
+        }
     };
 
   const profileCatalogueItems = useMemo(() => {
@@ -906,6 +1017,25 @@ function App() {
     return sorted;
   }, [searchTerm, quickFilter, providers]);
 
+  if (isLoading) {
+      return (
+          <div className="max-w-sm mx-auto bg-white font-sans h-screen flex items-center justify-center">
+              <LoadingSpinner message="Getting things ready..." />
+          </div>
+      );
+  }
+
+  if (error) {
+    return (
+        <div className="max-w-sm mx-auto bg-white font-sans h-screen flex items-center justify-center p-4">
+            <div className="text-center text-red-600 bg-red-50 rounded-lg p-8">
+                <p className="font-semibold">Something went wrong</p>
+                <p className="text-sm mt-2">{error}</p>
+            </div>
+        </div>
+    );
+  }
+
   if (viewMode === 'admin') {
     return <SuperAdminDashboard
         onBack={() => {
@@ -933,127 +1063,129 @@ function App() {
   const renderContent = () => {
     const headerHeight = 68;
     const wrapInPadding = (component: React.ReactNode) => <div style={{ paddingTop: `${headerHeight}px` }}>{component}</div>;
-
-    switch(viewMode) {
-      case 'inbox':
-        return wrapInPadding(<InboxView 
-            messages={inboxMessages} 
-            onUpdateMessages={setInboxMessages}
-            currentUserPhone={currentUser?.phone}
-            allProviders={providers}
-            onAction={handleSaccoVoteAction}
-        />);
-      case 'search':
-        return wrapInPadding(<SearchPage 
-          providers={filteredProviders}
-          onSelectProvider={handleSelectProvider}
-          quickFilter={quickFilter}
-          setQuickFilter={setQuickFilter}
-          isAuthenticated={isAuthenticated}
+    const componentMap: Record<ViewMode, React.ReactNode> = {
+      createEvent: wrapInPadding(<CreateEventView 
+          onBack={() => setViewMode('events')} 
+          onSave={handleCreateEvent}
+          currentUser={currentUser} 
+      />),
+      inbox: wrapInPadding(<InboxView 
+          messages={inboxMessages} 
+          onUpdateMessages={setInboxMessages}
+          currentUserPhone={currentUser?.phone}
+          allProviders={providers}
+          onAction={handleActionFromInbox}
+      />),
+      search: wrapInPadding(<SearchPage 
+        providers={filteredProviders}
+        onSelectProvider={handleSelectProvider}
+        categories={categories}
+        quickFilter={quickFilter}
+        setQuickFilter={setQuickFilter}
+        isAuthenticated={isAuthenticated}
+        onAuthClick={() => setAuthModalOpen(true)}
+      />),
+      invoiceHub: wrapInPadding(<InvoiceHub 
+          onNavigate={(view) => setViewMode(view as ViewMode)}
+      />),
+      brandKit: wrapInPadding(<BrandKitView assets={businessAssets} onSave={setBusinessAssets} onOrder={handleMerchOrder} />),
+      myDocuments: wrapInPadding(<MyDocumentsView 
+        documents={myDocuments} 
+        allDocuments={myDocuments}
+        onScan={handleScanNewDocument}
+        onSelectDocument={handleSelectDocument}
+      />),
+      scanDocument: wrapInPadding(<ScanDocumentView 
+          onBack={() => setViewMode('myDocuments')}
+          onSave={handleAddDocument}
+      />),
+      documentDetail: selectedDocument ? wrapInPadding(<DocumentDetailView
+              document={selectedDocument}
+              onBack={() => {
+                  setSelectedDocument(null);
+                  setViewMode('myDocuments');
+              }}
+              onUpdate={handleUpdateDocument}
+              currentUser={currentUser as ServiceProvider}
+          />) : null,
+      receiptGenerator: wrapInPadding(<ReceiptGenerator assets={businessAssets} onSave={handleSaveGeneratedReceipt} />),
+      quoteGenerator: wrapInPadding(<QuoteGenerator assets={businessAssets} />),
+      invoice: wrapInPadding(<InvoiceGenerator assets={businessAssets} />),
+      events: <EventsPage 
+          events={allEvents}
+          isAuthenticated={isAuthenticated} 
           onAuthClick={() => setAuthModalOpen(true)}
-        />);
-      case 'invoiceHub':
-        return wrapInPadding(<InvoiceHub 
-            onNavigate={(view) => setViewMode(view as ViewMode)}
-        />);
-      case 'assets':
-        return wrapInPadding(<BusinessAssets assets={businessAssets} onSave={setBusinessAssets} />);
-      case 'myDocuments':
-        return wrapInPadding(<MyDocumentsView documents={myDocuments} />);
-      case 'receiptGenerator':
-        return wrapInPadding(<ReceiptGenerator assets={businessAssets} />);
-      case 'quoteGenerator':
-        return wrapInPadding(<QuoteGenerator assets={businessAssets} />);
-      case 'invoice':
-        return wrapInPadding(<InvoiceGenerator assets={businessAssets} />);
-      case 'events':
-        return wrapInPadding(<EventsPage 
-            isAuthenticated={isAuthenticated} 
-            onAuthClick={() => setAuthModalOpen(true)}
-            onTicketAcquired={handleTicketAcquired}
-            currentUser={currentUser}
-            searchTerm={searchTerm}
-        />);
-      case 'gatepass':
-        return wrapInPadding(<GatePass
+          onTicketAcquired={handleTicketAcquired}
           currentUser={currentUser}
-          isSuperAdmin={isSuperAdmin}
+          onNavigateToCreate={() => setViewMode('createEvent')}
+          onBack={() => setViewMode('main')}
+      />,
+      gatepass: wrapInPadding(<GatePass
+        allProviders={providers}
+        currentUser={currentUser}
+        isSuperAdmin={isSuperAdmin}
+        isAuthenticated={isAuthenticated}
+        invitations={invitations}
+        onCreateInvitation={handleCreateInvitation}
+        onCreateKnock={handleCreateKnock}
+        onUpdateInvitationStatus={handleUpdateInvitationStatus}
+        onAuthClick={() => setAuthModalOpen(true)}
+        onGoToSignup={() => setViewMode('signup')}
+      />),
+      contacts: wrapInPadding(<SavedContactsView 
+          allProviders={providers} 
+          savedContactIds={savedContacts} 
+          onSelectProvider={handleSelectProvider} 
+      />),
+      flagged: wrapInPadding(<FlaggedContentPage 
+          providers={providers}
+          onViewProvider={handleSelectProvider}
+          onDeleteProvider={handleDeleteProvider}
+      />),
+      myTickets: wrapInPadding(<MyTicketsView tickets={myTickets} />),
+      catalogue: wrapInPadding(<CatalogueView 
+          items={myCatalogueItems} 
+          onUpdateItems={setMyCatalogueItems} 
+          currentUser={currentUser as ServiceProvider}
+          onUpdateUser={handleUpdateProvider}
           isAuthenticated={isAuthenticated}
-          invitations={invitations}
-          onCreateInvitation={handleCreateInvitation}
-          onUpdateInvitationStatus={handleUpdateInvitationStatus}
           onAuthClick={() => setAuthModalOpen(true)}
-          onGoToSignup={() => setViewMode('signup')}
-        />);
-      case 'contacts':
-        return wrapInPadding(<SavedContactsView 
-            allProviders={providers} 
-            savedContactIds={savedContacts} 
-            onSelectProvider={handleSelectProvider} 
-        />);
-      case 'flagged':
-        return wrapInPadding(<FlaggedContentPage 
-            providers={providers}
-            onViewProvider={handleSelectProvider}
-            onDeleteProvider={handleDeleteProvider}
-        />);
-      case 'myTickets':
-        return wrapInPadding(<MyTicketsView tickets={myTickets} />);
-      case 'catalogue':
-        return wrapInPadding(<CatalogueView 
-            items={myCatalogueItems} 
-            onUpdateItems={setMyCatalogueItems} 
-            currentUser={currentUser as ServiceProvider}
-            onUpdateUser={handleUpdateProvider}
-            isAuthenticated={isAuthenticated}
-            onAuthClick={() => setAuthModalOpen(true)}
+          onInitiateContact={handleInitiateContact}
+      />),
+      signup: <SignUpView
+          onBack={handleBack} onSave={handleProfileCreation} categories={categories}
+          currentUser={currentUser}
+      />,
+      profile: selectedProfile ? <ProfileView 
+            profileData={selectedProfile} 
+            isOwner={!!(currentUser && currentUser.id === selectedProfile.id)}
+            isAuthenticated={isAuthenticated} isSuperAdmin={isSuperAdmin} onBack={handleBack}
+            onLogout={handleLogout} onUpdate={handleUpdateProvider} onDelete={handleDeleteProvider}
+            onContactClick={() => setAuthModalOpen(true)}
             onInitiateContact={handleInitiateContact}
-        />);
-      case 'signup':
-        return <SignUpView
-            onBack={handleBack} onSave={handleProfileCreation} categories={categories}
-            currentUser={currentUser}
-        />
-      case 'profile':
-        if (selectedProfile) {
-          return <ProfileView 
-              profileData={selectedProfile} 
-              isOwner={!!(currentUser && currentUser.id === selectedProfile.id)}
-              isAuthenticated={isAuthenticated} isSuperAdmin={isSuperAdmin} onBack={handleBack}
-              onLogout={handleLogout} onUpdate={handleUpdateProvider} onDelete={handleDeleteProvider}
-              onContactClick={() => setAuthModalOpen(true)}
-              onInitiateContact={handleInitiateContact}
-              savedContacts={savedContacts}
-              onToggleSaveContact={handleToggleSaveContact}
-              catalogueItems={profileCatalogueItems}
-              onBook={(provider) => setProviderToBook(provider)}
-              onJoin={(provider) => setProviderToJoin(provider)}
-              isFlaggedByUser={flaggedProfiles.includes(selectedProfile.id)}
-              onFlag={(reason) => handleFlagProvider(selectedProfile.id, reason)}
-              currentUserPhone={currentUser?.phone}
-          />;
-        }
-        return null;
-      case 'main':
-      default:
-        return <>
-            <MainPage 
-                providers={filteredProviders.slice(0, 6)}
-                onSelectProvider={handleSelectProvider}
-                onInvoiceClick={() => setViewMode('invoiceHub')}
-                onEventsClick={() => setViewMode('events')}
-                onGatepassClick={() => setViewMode('gatepass')}
-                isAuthenticated={isAuthenticated}
-                onAuthClick={() => setAuthModalOpen(true)}
-                onSearchClick={() => setViewMode('search')}
-                isLoading={isLoading}
-                error={error}
-            />
-        </>
-    }
+            savedContacts={savedContacts}
+            onToggleSaveContact={handleToggleSaveContact}
+            catalogueItems={profileCatalogueItems}
+            onBook={(provider) => setProviderToBook(provider)}
+            onJoin={(provider) => setProviderToJoin(provider)}
+            isFlaggedByUser={flaggedProfiles.includes(selectedProfile.id)}
+            onFlag={(reason) => handleFlagProvider(selectedProfile.id, reason)}
+            currentUserPhone={currentUser?.phone}
+        /> : null,
+      admin: null,
+      main: <MainPage 
+              providers={filteredProviders.slice(0, 6)}
+              onSelectProvider={handleSelectProvider}
+              onViewModeChange={setViewMode}
+              isAuthenticated={isAuthenticated}
+              onAuthClick={() => setAuthModalOpen(true)}
+              onSearchClick={() => setViewMode('search')}
+          />
+    };
+    return <div key={viewMode} className="content-fade-in">{componentMap[viewMode]}</div>;
   }
 
-  const showHeader = !['signup', 'profile'].includes(viewMode);
+  const showHeader = !['signup', 'profile', 'events', 'createEvent'].includes(viewMode);
 
   return (
     <div ref={mainContainerRef} className="max-w-sm mx-auto bg-white font-sans h-screen overflow-y-auto overflow-x-hidden relative shadow-2xl no-scrollbar">
@@ -1070,7 +1202,7 @@ function App() {
       />
       
       {showHeader && (
-          <TopHeader 
+          <AppHeader 
             onMenuClick={() => setSideMenuOpen(true)} 
             onBackClick={handleBack}
             viewMode={viewMode}
@@ -1087,7 +1219,7 @@ function App() {
           {renderContent()}
       </main>
       
-      {!isAuthenticated && !isAuthModalOpen && (
+      {!isAuthenticated && !isAuthModalOpen && viewMode === 'main' && (
         <div className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto p-4 z-30 bg-gradient-to-t from-white to-transparent pointer-events-none">
             <div className="pointer-events-auto">
                 <button 

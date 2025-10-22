@@ -1,10 +1,11 @@
 {
-  "name": "niko-soko-service-finder",
+  "name": "niko-soko-pwa",
   "private": true,
-  "version": "1.0.0",
-  "description": "A minimalistic app to find and connect with essential service providers near you. This project is ready for local development and export.",
+  "version": "1.1.0",
+  "description": "A PWA to find and connect with essential service providers near you. This project is ready for local development and export.",
   "scripts": {
-    "start": "echo \"This project uses ES modules and can be run by serving the root directory with a simple HTTP server (e.g., 'python -m http.server' or using the VS Code Live Server extension).\""
+    "start": "http-server . -p 8080 -o",
+    "install-server": "npm install http-server"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -12,6 +13,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "http-server": "^14.1.1"
   }
 }

@@ -51,7 +51,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentPage, setCurrentPage }) =>
     <footer className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto bg-white border-t border-gray-200 shadow-lg">
       <div className="flex justify-around items-center h-16">
         {navItems.map((item) => (
-          <button key={item.page} onClick={() => setCurrentPage(item.page)} className="flex flex-col items-center justify-center flex-1 text-gray-500 hover:text-brand-primary transition-colors">
+          <button key={item.page} onClick={() => setCurrentPage(item.page)} className="flex flex-col items-center justify-center flex-1 text-gray-500 hover:text-gray-900 transition-colors">
             <item.icon active={currentPage === item.page} />
           </button>
         ))}

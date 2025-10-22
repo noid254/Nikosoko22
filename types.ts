@@ -63,8 +63,9 @@ export interface Event {
     description: string;
     coverImageUrl: string;
     createdBy: string; // This can be the organizer's name
-    category: 'Music' | 'Conference' | 'Party' | 'Wedding' | 'Community' | 'Arts' | 'Business' | 'Fashion' | 'Gaming';
-    price: number; // Renamed from entryFee
+    category: 'Music' | 'Food' | 'Sport' | 'Conference' | 'Party' | 'Wedding' | 'Community' | 'Arts' | 'Business' | 'Fashion' | 'Gaming';
+    price: number;
+    originalPrice?: number;
     currency: string;
     ticketType: 'single' | 'multiple';
     distanceKm: number;
@@ -86,6 +87,8 @@ export interface Ticket {
   eventLocation: string;
   userName: string;
   qrCodeData: string;
+  gate: string;
+  eventCoverUrl: string;
 }
 
 export type CatalogueCategory = 'For Rent' | 'For Sale' | 'Product' | 'Service';
@@ -117,25 +120,49 @@ export interface SpecialBanner {
 
 export type DocumentType = 'Invoice' | 'Quote' | 'Receipt';
 
+export interface DocumentItem {
+  description: string;
+  quantity: number;
+  price: number;
+  serial?: string;
+}
+
 export interface Document {
   id: string;
   type: DocumentType;
   number: string;
-  from: string;
+  issuerName: string; // 'from' renamed
+  clientName?: string; // New: for invoices/quotes
   date: string;
   amount: number;
   currency: string;
-  status: 'Paid' | 'Pending' | 'Overdue' | 'Draft';
+  paymentStatus: 'Paid' | 'Pending' | 'Overdue' | 'Draft'; // 'status' renamed
+
+  // New fields for receipts/assets
+  items?: DocumentItem[];
+  scannedImageUrl?: string;
+  verificationStatus?: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
+  isAsset?: boolean;
+  ownerPhone?: string;
+  productImages?: string[];
+  specifications?: string;
+  pendingOwnerPhone?: string;
 }
+
 
 export interface Invitation {
   id: string;
   hostId: number;
   hostName: string;
+  hostApartment?: string;
   visitorPhone: string;
+  visitorId?: number;
+  visitorName?: string;
+  visitorAvatar?: string;
   visitDate: string;
-  status: 'Active' | 'Canceled' | 'Used';
+  status: 'Active' | 'Canceled' | 'Used' | 'Pending' | 'Approved' | 'Denied' | 'Expired';
   accessCode: string;
+  type: 'Invite' | 'Knock';
 }
 
 export interface BusinessAssets {
@@ -153,9 +180,17 @@ export interface InboxMessage {
   timestamp: string;
   isRead: boolean;
   action?: {
-    type: 'saccoJoinRequest';
-    organizationId: number;
-    requesterId: number;
+    type: 'saccoJoinRequest' | 'assetTransfer';
+    organizationId?: number;
+    requesterId?: number;
+    documentId?: string;
   };
   requesterProfile?: Partial<ServiceProvider>; // For attaching profile cards to messages
+}
+
+export interface Premise {
+    id: string;
+    name: string;
+    superhostId: number;
+    hosts: number[];
 }

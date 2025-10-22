@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import type { ServiceProvider } from '../types';
 import ServiceCard from './ServiceCard';
@@ -7,16 +8,18 @@ import { CategoryFilter } from '../App';
 interface SearchPageProps {
     providers: ServiceProvider[];
     onSelectProvider: (provider: ServiceProvider) => void;
+    categories: string[];
     quickFilter: { type: 'category' | 'service'; value: string } | null;
     setQuickFilter: React.Dispatch<React.SetStateAction<{ type: 'category' | 'service'; value: string } | null>>;
     isAuthenticated: boolean;
     onAuthClick: () => void;
 }
 
-const SearchPage: React.FC<SearchPageProps> = ({ providers, onSelectProvider, quickFilter, setQuickFilter, isAuthenticated, onAuthClick }) => {
+const SearchPage: React.FC<SearchPageProps> = ({ providers, onSelectProvider, categories, quickFilter, setQuickFilter, isAuthenticated, onAuthClick }) => {
     return (
         <div className="bg-gray-100 min-h-screen">
             <CategoryFilter
+                categories={categories}
                 quickFilter={quickFilter}
                 setQuickFilter={setQuickFilter}
                 isAuthenticated={isAuthenticated}

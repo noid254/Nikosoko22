@@ -6,7 +6,7 @@ interface InboxViewProps {
     onUpdateMessages: (messages: InboxMessage[]) => void;
     currentUserPhone: string | undefined;
     allProviders: ServiceProvider[];
-    onAction: (orgId: number, reqId: number, action: 'approve' | 'deny', leaderPhone: string) => void;
+    onAction: (type: 'saccoJoinRequest' | 'assetTransfer', payload: any) => void;
 }
 
 const RequesterCard: React.FC<{profile: Partial<ServiceProvider>}> = ({ profile }) => (
@@ -25,54 +25,77 @@ const InboxMessageRow: React.FC<{
     isSelected: boolean,
     allProviders: ServiceProvider[],
     currentUserPhone: string | undefined,
-    onAction: (orgId: number, reqId: number, action: 'approve' | 'deny', leaderPhone: string) => void,
+    onAction: (type: 'saccoJoinRequest' | 'assetTransfer', payload: any) => void,
 }> = ({ message, onSelect, isSelected, allProviders, currentUserPhone, onAction }) => {
     const isRead = message.isRead || isSelected;
 
     const actionData = useMemo(() => {
-        if (!message.action || message.action.type !== 'saccoJoinRequest') return null;
-
-        const organization = allProviders.find(p => p.id === message.action!.organizationId);
-        if (!organization || !organization.joinRequests) return null;
-
-        const request = organization.joinRequests.find(r => r.userId === message.action!.requesterId);
-        if (!request) return null;
-
-        return { organization, request };
+        if (!message.action) return null;
+        if (message.action.type === 'saccoJoinRequest') {
+            const organization = allProviders.find(p => p.id === message.action!.organizationId);
+            if (!organization || !organization.joinRequests) return null;
+            const request = organization.joinRequests.find(r => r.userId === message.action!.requesterId);
+            if (!request) return null;
+            return { type: 'sacco', organization, request };
+        }
+        if (message.action.type === 'assetTransfer') {
+            return { type: 'asset', documentId: message.action.documentId };
+        }
+        return null;
     }, [message.action, allProviders]);
 
-    const handleActionClick = (e: React.MouseEvent, action: 'approve' | 'deny') => {
-        e.stopPropagation(); // Prevent the message from collapsing
-        if (actionData && currentUserPhone) {
-            onAction(actionData.organization.id, actionData.request.userId, action, currentUserPhone);
+    const handleActionClick = (e: React.MouseEvent, actionPayload: any) => {
+        e.stopPropagation(); 
+        if (!actionData) return;
+        
+        if(actionData.type === 'sacco' && currentUserPhone) {
+            onAction('saccoJoinRequest', {
+                orgId: actionData.organization.id,
+                reqId: actionData.request.userId,
+                action: actionPayload.decision,
+                leaderPhone: currentUserPhone,
+            });
+        } else if (actionData.type === 'asset') {
+            onAction('assetTransfer', {
+                documentId: actionData.documentId,
+                decision: actionPayload.decision
+            });
         }
     };
     
     const renderActionUI = () => {
-        if (!actionData || !currentUserPhone) return null;
+        if (!actionData) return null;
 
-        const { request } = actionData;
-        const approvals = request.approvals || [];
-        const rejections = request.rejections || [];
-        const leaderHasVoted = approvals.includes(currentUserPhone) || rejections.includes(currentUserPhone);
+        if (actionData.type === 'sacco') {
+             const { request } = actionData;
+            const approvals = request.approvals || [];
+            const rejections = request.rejections || [];
+            const leaderHasVoted = currentUserPhone && (approvals.includes(currentUserPhone) || rejections.includes(currentUserPhone));
 
-        if (request.status === 'approved') {
-            return <p className="text-sm font-bold text-green-600 mt-3">Request Approved</p>;
-        }
-        if (request.status === 'rejected') {
-            return <p className="text-sm font-bold text-red-600 mt-3">Request Rejected</p>;
-        }
-        if (leaderHasVoted) {
-            const voteStatus = approvals.includes(currentUserPhone) ? 'Approved by you' : 'Rejected by you';
-            return <p className="text-sm font-bold text-gray-600 mt-3">{voteStatus} ({approvals.length}/3 needed)</p>;
+            if (request.status === 'approved') return <p className="text-sm font-bold text-green-600 mt-3">Request Approved</p>;
+            if (request.status === 'rejected') return <p className="text-sm font-bold text-red-600 mt-3">Request Rejected</p>;
+            if (leaderHasVoted) {
+                const voteStatus = approvals.includes(currentUserPhone!) ? 'Approved by you' : 'Rejected by you';
+                return <p className="text-sm font-bold text-gray-600 mt-3">{voteStatus} ({approvals.length}/3 needed)</p>;
+            }
+            return (
+                <div className="flex gap-2 mt-3">
+                    <button onClick={(e) => handleActionClick(e, { decision: 'approve' })} className="flex-1 bg-green-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Approve</button>
+                    <button onClick={(e) => handleActionClick(e, { decision: 'deny' })} className="flex-1 bg-red-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Deny</button>
+                </div>
+            )
         }
         
-        return (
-             <div className="flex gap-2 mt-3">
-                <button onClick={(e) => handleActionClick(e, 'approve')} className="flex-1 bg-green-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Approve</button>
-                <button onClick={(e) => handleActionClick(e, 'deny')} className="flex-1 bg-red-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Deny</button>
-            </div>
-        )
+        if (actionData.type === 'asset') {
+            return (
+                 <div className="flex gap-2 mt-3">
+                    <button onClick={(e) => handleActionClick(e, { decision: 'accept' })} className="flex-1 bg-green-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Accept</button>
+                    <button onClick={(e) => handleActionClick(e, { decision: 'deny' })} className="flex-1 bg-red-500 text-white font-bold py-2 px-3 rounded-lg text-sm">Deny</button>
+                </div>
+            )
+        }
+        
+        return null;
     }
 
     return (
@@ -100,7 +123,10 @@ const InboxView: React.FC<InboxViewProps> = ({ messages, onUpdateMessages, curre
     const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
 
     const userMessages = useMemo(() => {
-        return messages.filter(m => !m.recipientPhone || m.recipientPhone === currentUserPhone).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const normalizedPhone = currentUserPhone?.slice(-9);
+        return messages
+            .filter(m => !m.recipientPhone || m.recipientPhone.endsWith(normalizedPhone || ''))
+            .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [messages, currentUserPhone]);
     
     const handleSelectMessage = (id: number) => {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import type { BusinessAssets } from '../types';
+import type { BusinessAssets, Document } from '../types';
 
 declare const html2pdf: any;
 
@@ -18,7 +18,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 const formatKsh = (amount: number) => `Ksh ${currencyFormatter.format(amount)}`;
 
-const ReceiptGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
+const ReceiptGenerator: React.FC<{assets: BusinessAssets, onSave: (doc: Omit<Document, 'id'>) => void}> = ({ assets, onSave }) => {
   const [items, setItems] = useState<LineItem[]>([
       { id: 1, name: "Smartphone X", qty: 1, price: 25000, serial: 'IMEI-987654321' }
   ]);
@@ -67,9 +67,25 @@ const ReceiptGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
     }).save();
   };
   
-  const handleShare = () => {
-    const link = `https://www.tukosoko.com/receipt/${receiptId}`;
-    alert(`Share this link: ${link}\n\n(Simulation: First click downloads PDF, subsequent clicks would require OTP verification based on receipt number ${receiptId})`);
+  const handleSaveToAssets = () => {
+      const hasAsset = items.some(item => !!item.serial);
+      if (!hasAsset) {
+          alert("To save as an asset, at least one item must have a serial number.");
+          return;
+      }
+      const newDoc: Omit<Document, 'id'> = {
+          type: 'Receipt',
+          number: receiptId,
+          issuerName: businessName,
+          date: new Date().toISOString(),
+          amount: total,
+          currency: 'Ksh',
+          paymentStatus: 'Paid',
+          isAsset: true,
+          verificationStatus: 'Verified', // Self-issued receipts are auto-verified
+          items: items.map(i => ({ description: i.name, quantity: i.qty, price: i.price, serial: i.serial })),
+      };
+      onSave(newDoc);
   };
 
   return (
@@ -78,7 +94,7 @@ const ReceiptGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
          <h2 className="font-bold text-gray-700">Receipt Generator</h2>
         <div className="flex gap-2">
             <button onClick={generatePdf} className="text-sm px-3 py-1 bg-red-500 text-white font-bold rounded-lg">PDF</button>
-            <button onClick={handleShare} className="text-sm px-3 py-1 bg-green-500 text-white font-bold rounded-lg">Share</button>
+            <button onClick={handleSaveToAssets} className="text-sm px-3 py-1 bg-blue-500 text-white font-bold rounded-lg">Save to My Assets</button>
         </div>
       </div>
       
@@ -92,7 +108,7 @@ const ReceiptGenerator: React.FC<{assets: BusinessAssets}> = ({ assets }) => {
                   <input type="number" name="item_price" required min="0.01" step="any" className="block w-full rounded-md border-gray-300 shadow-sm p-2 border" placeholder="Unit Price"/>
               </div>
               <input type="text" name="item_serial" className="block w-full rounded-md border-gray-300 shadow-sm p-2 border" placeholder="IMEI / Serial Number (Optional)"/>
-              <button type="submit" className="w-full px-4 py-2 font-semibold text-white transition duration-300 rounded-lg shadow-md bg-brand-dark hover:bg-gray-700">
+              <button type="submit" className="w-full px-4 py-2 font-semibold text-white transition duration-300 rounded-lg shadow-md bg-brand-dark hover:bg-black">
                   + Add Item
               </button>
           </form>

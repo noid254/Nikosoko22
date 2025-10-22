@@ -1,6 +1,8 @@
+
+
 import React from 'react';
 
-type HubView = 'myDocuments' | 'quoteGenerator' | 'invoice' | 'assets' | 'receiptGenerator';
+type HubView = 'myDocuments' | 'quoteGenerator' | 'invoice' | 'brandKit' | 'receiptGenerator';
 
 interface InvoiceHubProps {
     onNavigate: (view: HubView) => void;
@@ -9,7 +11,7 @@ interface InvoiceHubProps {
 const CreateCard: React.FC<{ title: string, description: string, icon: React.ReactNode, onClick: () => void }> = ({ title, description, icon, onClick }) => (
     <button onClick={onClick} className="bg-white p-4 rounded-xl shadow-sm text-left w-full hover:shadow-md hover:-translate-y-1 transition-all duration-200 border border-gray-200">
         <div className="flex items-start gap-4">
-            <div className="bg-gray-100 p-3 rounded-lg text-brand-primary">
+            <div className="bg-gray-100 p-3 rounded-lg text-gray-800">
                 {icon}
             </div>
             <div>
@@ -23,7 +25,7 @@ const CreateCard: React.FC<{ title: string, description: string, icon: React.Rea
 const ManagementLink: React.FC<{ title: string, onClick: () => void, icon: React.ReactNode }> = ({ title, onClick, icon }) => (
      <button onClick={onClick} className="bg-white p-4 rounded-xl shadow-sm text-left w-full hover:shadow-md hover:bg-gray-50 transition-all duration-200 border border-gray-200 flex justify-between items-center">
         <div className="flex items-center gap-4">
-             <div className="text-brand-primary">
+             <div className="text-gray-800">
                 {icon}
             </div>
             <h3 className="font-semibold text-gray-700">{title}</h3>
@@ -80,9 +82,9 @@ const InvoiceHub: React.FC<InvoiceHubProps> = ({ onNavigate }) => {
                         onClick={() => onNavigate('myDocuments')} 
                     />
                     <ManagementLink 
-                        title="Business Assets" 
+                        title="Brand Kit" 
                         icon={<AssetsIcon />} 
-                        onClick={() => onNavigate('assets')} 
+                        onClick={() => onNavigate('brandKit')} 
                     />
                 </div>
             </section>

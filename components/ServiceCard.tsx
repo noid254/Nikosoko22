@@ -54,7 +54,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ provider, onClick }) => {
             <StarIcon />
             <span className="text-gray-600 font-semibold ml-1 text-xs">{provider.rating}</span>
           </div>
-          <p className="text-brand-dark font-bold text-sm">{provider.currency}{provider.hourlyRate}/{rateSuffix[provider.rateType]}</p>
+          <p className="text-gray-800 font-bold text-sm">{provider.currency}{provider.hourlyRate}/{rateSuffix[provider.rateType]}</p>
         </div>
       </div>
     </div>

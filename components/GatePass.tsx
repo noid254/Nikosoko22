@@ -1,366 +1,300 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Invitation, ServiceProvider, Ticket } from '../types';
+import type { Invitation, ServiceProvider } from '../types';
+import { PREMISE_CONTACTS } from '../constants';
+import * as api from '../services/api';
 
-type GatePassForInvitations = {
+type KaribuProps = {
+    allProviders: ServiceProvider[];
     currentUser: Partial<ServiceProvider> | null;
     isSuperAdmin: boolean;
     isAuthenticated: boolean;
     invitations: Invitation[];
-    onCreateInvitation: (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'hostName'>) => Promise<void>;
-    onUpdateInvitationStatus: (id: string, status: 'Canceled' | 'Used') => Promise<void>;
+    onCreateInvitation: (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'hostName' | 'type'>) => Promise<void>;
+    onCreateKnock: (data: Omit<Invitation, 'id' | 'status' | 'accessCode' | 'type'>) => Promise<void>;
+    onUpdateInvitationStatus: (id: string, status: Invitation['status']) => Promise<void>;
     onAuthClick: () => void;
     onGoToSignup: () => void;
-    ticket?: never;
 };
 
-type GatePassForTicket = {
-    ticket: Ticket;
-    currentUser?: never;
-    isSuperAdmin?: never;
-    isAuthenticated?: never;
-    invitations?: never;
-    onCreateInvitation?: never;
-    onUpdateInvitationStatus?: never;
-    onAuthClick?: never;
-    onGoToSignup?: never;
-};
+// --- Sub-components for Karibu System ---
 
-type GatePassProps = GatePassForInvitations | GatePassForTicket;
+const VisitorPass: React.FC<{ pass: Invitation }> = ({ pass }) => (
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs font-sans text-gray-800 p-6 flex flex-col items-center">
+        <img src={pass.visitorAvatar || 'https://picsum.photos/seed/guest/100/100'} alt={pass.visitorName} className="w-24 h-24 rounded-full object-cover border-4 border-gray-200 shadow-md"/>
+        <h2 className="text-2xl font-bold mt-4">{pass.visitorName || `Guest (${pass.visitorPhone})`}</h2>
+        <p className="text-sm text-gray-500">Visiting {pass.hostName} ({pass.hostApartment})</p>
+        
+        <div className="my-6">
+            <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pass.accessCode)}`}
+                alt="Visitor Pass QR Code"
+                className="w-48 h-48 rounded-lg"
+            />
+        </div>
+        
+        <div className="w-full text-center bg-green-100 text-green-800 font-bold py-3 px-4 rounded-lg">
+            APPROVED - Ready for Scan
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Expires: {new Date(pass.visitDate).toLocaleDateString()} at midnight</p>
+    </div>
+);
 
-const IdentityIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4z" /></svg>;
-const UserRoleTag: React.FC<{role: string}> = ({ role }) => {
-    const roleColor = role === 'Superhost' ? 'bg-green-500' : 'bg-blue-500';
-    return <span className={`px-2 py-1 text-xs font-bold text-white rounded-full ${roleColor}`}>{role}</span>
-};
-
-const QRScannerModal: React.FC<{
+const PremiseLandingModal: React.FC<{
     onClose: () => void;
-    onScan: (accessCode: string) => void;
-    activeInvitations: Invitation[];
-}> = ({ onClose, onScan, activeInvitations }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [scanResult, setScanResult] = useState<string>('');
-    const [error, setError] = useState<string>('');
+    onKnock: (apartment: string) => void;
+    isAuthenticated: boolean;
+    onAuthClick: () => void;
+}> = ({ onClose, onKnock, isAuthenticated, onAuthClick }) => {
+    const [showCallMenu, setShowCallMenu] = useState(false);
+    const [isKnocking, setIsKnocking] = useState(false);
+    const [apartment, setApartment] = useState('');
 
-    useEffect(() => {
-        const startCamera = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    // Mock scanning
-                    setTimeout(() => {
-                        if (activeInvitations.length > 0) {
-                            const codeToScan = activeInvitations[0].accessCode;
-                            setScanResult(`Success! Scanned code: ${codeToScan}`);
-                            onScan(codeToScan);
-                            setTimeout(onClose, 2000); // Close modal after success message
-                        } else {
-                            setScanResult('No active passes to scan.');
-                            setTimeout(onClose, 2000);
-                        }
-                    }, 3000);
-                }
-            } catch (err) {
-                setError('Could not access camera. Please check permissions.');
-                console.error("Camera Error:", err);
-            }
-        };
-        startCamera();
-
-        return () => {
-            if (videoRef.current && videoRef.current.srcObject) {
-                const stream = videoRef.current.srcObject as MediaStream;
-                stream.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [activeInvitations, onScan, onClose]);
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center z-50 p-4">
-            <div className="bg-white p-4 rounded-lg text-center max-w-sm w-full">
-                <h2 className="text-xl font-bold mb-2">QR Code Scanner</h2>
-                <div className="relative w-full aspect-square bg-gray-900 rounded-md overflow-hidden">
-                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                    <div className="absolute inset-0 border-4 border-green-500/50 rounded-md"></div>
-                    {error && <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white p-4">{error}</div>}
-                </div>
-                <p className="mt-4 text-gray-700 h-5">{scanResult || 'Point camera at visitor\'s QR code...'}</p>
-                <button onClick={onClose} className="mt-4 bg-gray-200 px-4 py-2 rounded-lg w-full">Cancel</button>
-            </div>
-        </div>
-    );
-};
-
-
-const TicketView: React.FC<{ ticket: Ticket }> = ({ ticket }) => {
-    return (
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs font-sans text-gray-800">
-            {/* Top Part */}
-            <div className="p-6 border-b-2 border-dashed border-gray-300">
-                <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">{new Date(ticket.eventDate).toLocaleDateString('en-US', { weekday: 'long' })}</p>
-                <h2 className="text-2xl font-bold mt-1">{ticket.eventName}</h2>
-                <div className="mt-4 text-sm space-y-2 text-gray-600">
-                    <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <span>{new Date(ticket.eventDate).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        <span>{ticket.eventLocation}</span>
-                    </div>
-                </div>
-            </div>
-            {/* Bottom Part */}
-            <div className="p-6 text-center">
-                <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(ticket.qrCodeData)}`}
-                    alt="Ticket QR Code"
-                    className="w-40 h-40 mx-auto rounded-lg"
-                />
-                <p className="font-semibold mt-4 text-lg">{ticket.userName}</p>
-                <p className="text-xs text-gray-500 mt-1">{ticket.id}</p>
-                <div className="mt-4 opacity-70">
-                    <svg className="h-8 w-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 30" preserveAspectRatio="none">
-                      <rect x="0" y="5" width="2" height="20" fill="black" />
-                      <rect x="4" y="5" width="2" height="20" fill="black" />
-                      <rect x="8" y="5" width="4" height="20" fill="black" />
-                      <rect x="14" y="5" width="2" height="20" fill="black" />
-                      <rect x="20" y="5" width="4" height="20" fill="black" />
-                      <rect x="26" y="5" width="2" height="20" fill="black" />
-                      <rect x="30" y="5" width="2" height="20" fill="black" />
-                      <rect x="36" y="5" width="4" height="20" fill="black" />
-                      <rect x="42" y="5" width="2" height="20" fill="black" />
-                      <rect x="48" y="5" width="2" height="20" fill="black" />
-                      <rect x="52" y="5" width="4" height="20" fill="black" />
-                      <rect x="58" y="5" width="2" height="20" fill="black" />
-                      <rect x="64" y="5" width="4" height="20" fill="black" />
-                      <rect x="70" y="5" width="2" height="20" fill="black" />
-                      <rect x="74" y="5" width="2" height="20" fill="black" />
-                      <rect x="80" y="5" width="4" height="20" fill="black" />
-                      <rect x="86" y="5" width="2" height="20" fill="black" />
-                      <rect x="90" y="5" width="2" height="20" fill="black" />
-                      <rect x="94" y="5" width="4" height="20" fill="black" />
-                      <rect x="100" y="5" width="2" height="20" fill="black" />
-                      <rect x="106" y="5" width="4" height="20" fill="black" />
-                      <rect x="112" y="5" width="2" height="20" fill="black" />
-                      <rect x="116" y="5" width="2" height="20" fill="black" />
-                      <rect x="122" y="5" width="4" height="20" fill="black" />
-                      <rect x="128" y="5" width="2" height="20" fill="black" />
-                      <rect x="132" y="5" width="2" height="20" fill="black" />
-                      <rect x="136" y="5" width="4" height="20" fill="black" />
-                      <rect x="142" y="5" width="2" height="20" fill="black" />
-                      <rect x="148" y="5" width="2" height="20" fill="black" />
-                      <rect x="152" y="5" width="4" height="20" fill="black" />
-                      <rect x="158" y="5" width="2" height="20" fill="black" />
-                      <rect x="164" y="5" width="4" height="20" fill="black" />
-                      <rect x="170" y="5" width="2" height="20" fill="black" />
-                      <rect x="174" y="5" width="2" height="20" fill="black" />
-                      <rect x="180" y="5" width="4" height="20" fill="black" />
-                      <rect x="186" y="5" width="2" height="20" fill="black" />
-                       <rect x="190" y="5" width="2" height="20" fill="black" />
-                      <rect x="194" y="5" width="4" height="20" fill="black" />
-                      <rect x="200" y="5" width="2" height="20" fill="black" />
-                      <rect x="206" y="5" width="4" height="20" fill="black" />
-                      <rect x="212" y="5" width="2" height="20" fill="black" />
-                      <rect x="216" y="5" width="2" height="20" fill="black" />
-                      <rect x="222" y="5" width="4" height="20" fill="black" />
-                      <rect x="228" y="5" width="2" height="20" fill="black" />
-                      <rect x="232" y="5" width="4" height="20" fill="black" />
-                      <rect x="238" y="5" width="2" height="20" fill="black" />
-                      <rect x="242" y="5" width="2" height="20" fill="black" />
-                      <rect x="246" y="5" width="4" height="20" fill="black" />
-                    </svg>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const GatePass: React.FC<GatePassProps> = (props) => {
-    if (props.ticket) {
-        return <TicketView ticket={props.ticket} />;
-    }
-
-    const { currentUser, isSuperAdmin, isAuthenticated, invitations, onCreateInvitation, onUpdateInvitationStatus, onAuthClick, onGoToSignup } = props;
-    const [visitorPhone, setVisitorPhone] = useState('');
-    const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
-    const [isScanning, setIsScanning] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const userRole = isSuperAdmin ? 'Superhost' : (isAuthenticated ? 'Host' : 'Visitor');
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!currentUser || !currentUser.id || !onCreateInvitation) return;
-
-        if (!/^\d{9,10}$/.test(visitorPhone)) {
-            alert("Please enter a valid 9 or 10 digit phone number.");
+    const handleKnock = () => {
+        if(!isAuthenticated) {
+            onAuthClick();
             return;
         }
-        
-        setIsSubmitting(true);
-        try {
-            await onCreateInvitation({
-                hostId: currentUser.id,
-                visitorPhone,
-                visitDate,
-            });
-            setVisitorPhone('');
-        } catch(error) {
-            console.error("Failed to create invitation:", error);
-            alert("Could not create invitation. Please try again.");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-    
-    const handleCancelInvitation = async (id: string) => {
-        if(window.confirm('Are you sure you want to cancel this invitation?') && onUpdateInvitationStatus) {
-            try {
-                await onUpdateInvitationStatus(id, 'Canceled');
-            } catch(error) {
-                console.error("Failed to cancel invitation:", error);
-                alert("Could not cancel invitation. Please try again.");
-            }
-        }
-    };
-    
-    const handleScanSuccess = async (scannedCode: string) => {
-        if (!onUpdateInvitationStatus) return;
-        const invitation = invitations.find(inv => inv.accessCode === scannedCode && inv.status === 'Active');
-        if (invitation) {
-            try {
-                await onUpdateInvitationStatus(invitation.id, 'Used');
-                alert(`Invitation for ${invitation.visitorPhone} successfully verified.`);
-            } catch(error) {
-                alert("Failed to update invitation status.");
-            }
-        } else {
-            alert(`Invalid or already used code: ${scannedCode}`);
-        }
-        setIsScanning(false);
-    };
-
-    const dashboardInvitations = useMemo(() => {
-        if (userRole === 'Superhost') {
-            return invitations;
-        }
-        if (userRole === 'Host' && currentUser?.id) {
-            return invitations.filter(inv => inv.hostId === currentUser.id);
-        }
-        return [];
-    }, [userRole, invitations, currentUser]);
-
-    const getStatusColor = (status: Invitation['status']) => {
-        switch (status) {
-            case 'Active': return 'bg-green-100 text-green-800';
-            case 'Canceled': return 'bg-red-100 text-red-800';
-            case 'Used': return 'bg-gray-100 text-gray-800';
-        }
+        setIsKnocking(true);
     }
     
-    if (!isAuthenticated) {
-        return (
-            <div className="p-4 text-center">
-                <button onClick={onAuthClick} className="bg-brand-primary text-white font-bold py-3 px-6 rounded-lg">
-                    Please sign in to manage invitations.
-                </button>
-            </div>
-        )
-    }
-
-    if (isAuthenticated && currentUser && !('service' in currentUser)) {
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-md text-center">
-                <h2 className="text-lg font-bold text-gray-800">Verification Required</h2>
-                <p className="text-gray-600 my-3">To use the Gate Pass feature, you need a verified identity. Please complete your service provider profile.</p>
-                <button
-                    onClick={onGoToSignup}
-                    className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                    Create Profile
-                </button>
-            </div>
-        );
+    const submitKnock = () => {
+        if(apartment.trim()) {
+            onKnock(apartment.trim());
+        }
     }
 
     return (
-        <div className="bg-gray-100 min-h-full font-sans p-4 space-y-6">
-            {isScanning && (
-                <QRScannerModal 
-                    onClose={() => setIsScanning(false)} 
-                    onScan={handleScanSuccess}
-                    activeInvitations={dashboardInvitations.filter(i => i.status === 'Active')}
-                />
-            )}
-            <header className="bg-brand-dark p-4 rounded-xl shadow-lg text-white">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold">Gate Pass System</h1>
-                        <p className="text-sm text-gray-300">Welcome, {currentUser?.name}</p>
+         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-xs text-center" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold">{PREMISE_CONTACTS.name}</h2>
+                <p className="text-gray-600 mt-1">Welcome! Please select an option.</p>
+                
+                {isKnocking ? (
+                    <div className="mt-6">
+                        <label htmlFor="apartment" className="font-semibold">Who are you visiting? (Apt No.)</label>
+                        <input 
+                            id="apartment" type="text" value={apartment} onChange={e => setApartment(e.target.value.toUpperCase())}
+                            placeholder="e.g. C5" autoFocus
+                            className="w-full text-center text-2xl font-bold p-2 border-b-2 mt-2 focus:outline-none focus:border-brand-primary"
+                        />
+                         <button onClick={submitKnock} className="mt-6 w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg">Send Request</button>
                     </div>
-                    <div className="bg-white/10 p-3 rounded-full"><IdentityIcon /></div>
-                </div>
-                 <div className="mt-2"><UserRoleTag role={userRole} /></div>
-            </header>
-            
-            {(userRole === 'Host' || userRole === 'Superhost') && (
-                 <div className="bg-white p-4 rounded-xl shadow-md">
-                    <button onClick={() => setIsScanning(true)} className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6.5-1H11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-1.5m-1 0V9a2 2 0 012-2h2a2 2 0 012 2v1.5m-7.5 4.5v2a2 2 0 002 2h2a2 2 0 002-2v-2" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01" /></svg>
-                        Scan QR Pass
-                    </button>
-                 </div>
-            )}
-
-            {(userRole === 'Host' || userRole === 'Superhost') && (
-                 <div className="bg-white p-4 rounded-xl shadow-md">
-                     <h2 className="text-lg font-bold text-gray-800 mb-4">Create New Invitation</h2>
-                     <form onSubmit={handleSubmit} className="space-y-4">
-                         <div>
-                             <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Visitor's Phone Number</label>
-                             <div className="flex items-center mt-1 border border-gray-300 rounded-md shadow-sm focus-within:ring-1 focus-within:ring-brand-primary">
-                                 <span className="pl-3 text-gray-500">+254</span>
-                                 <input type="tel" id="phone" value={visitorPhone} onChange={(e) => setVisitorPhone(e.target.value.replace(/\D/g, '').slice(0, 9))} required placeholder="722123456" className="block w-full pl-1 pr-3 py-2 border-0 rounded-md focus:outline-none focus:ring-0 sm:text-sm"/>
-                             </div>
-                         </div>
-                         <div>
-                            <label htmlFor="date" className="block text-sm font-medium text-gray-700">Visit Date</label>
-                            <input type="date" id="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} required min={new Date().toISOString().split('T')[0]} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary sm:text-sm"/>
-                         </div>
-                         <button type="submit" disabled={isSubmitting} className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors disabled:bg-gray-400">
-                            {isSubmitting ? 'Generating...' : 'Generate Access Code'}
-                         </button>
-                     </form>
-                 </div>
-            )}
-            
-            {(userRole === 'Host' || userRole === 'Superhost') && (
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">{userRole === 'Superhost' ? 'All Invitations' : 'My Invitations'}</h2>
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {dashboardInvitations.length > 0 ? dashboardInvitations.map(inv => (
-                            <div key={inv.id} className="bg-gray-50 p-3 rounded-lg">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-bold text-gray-800">Code: {inv.accessCode}</p>
-                                        <p className="text-sm text-gray-600">Visitor: +254{inv.visitorPhone}</p>
-                                        {userRole === 'Superhost' && <p className="text-xs text-gray-500">Host: {inv.hostName}</p>}
-                                    </div>
-                                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusColor(inv.status)}`}>{inv.status}</span>
+                ) : (
+                    <div className="mt-6 space-y-3">
+                        <div className="relative">
+                            <button onClick={() => setShowCallMenu(p => !p)} className="w-full border-2 border-brand-primary text-brand-primary font-bold py-3 px-4 rounded-lg">Call</button>
+                            {showCallMenu && (
+                                <div className="mt-2 space-y-2">
+                                    {PREMISE_CONTACTS.contacts.map(c => (
+                                        <a key={c.name} href={`tel:${c.phone}`} className="block w-full bg-gray-100 text-gray-800 p-3 rounded-lg">{c.name}</a>
+                                    ))}
                                 </div>
-                                <div className="flex justify-between items-end mt-2">
-                                    <p className="text-xs text-gray-500">Date: {new Date(inv.visitDate).toLocaleDateString()}</p>
-                                    {inv.status === 'Active' && (
-                                        <button onClick={() => handleCancelInvitation(inv.id)} className="text-xs bg-red-500 text-white font-semibold px-2 py-1 rounded-md hover:bg-red-600">
-                                            Cancel
-                                        </button>
-                                    )}
+                            )}
+                        </div>
+                        <button onClick={handleKnock} className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg">Ring Bell (Knock Knock)</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+const RegisterPremiseModal: React.FC<{ onClose: () => void, onRegister: (name: string) => void }> = ({ onClose, onRegister }) => {
+    const [name, setName] = useState('');
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold text-center mb-2">Register Your Premise</h2>
+                <p className="text-sm text-gray-600 text-center mb-6">Become a Superhost and manage visitors for your building, school, or estate.</p>
+                <input 
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g., Greenpark Apartments"
+                    className="w-full p-3 border rounded-lg mb-4"
+                />
+                <button onClick={() => onRegister(name)} disabled={!name.trim()} className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-lg disabled:bg-gray-400">
+                    Register & Become Superhost
+                </button>
+            </div>
+        </div>
+    );
+};
+
+
+const GatePass: React.FC<KaribuProps> = ({ currentUser, isSuperAdmin, isAuthenticated, invitations, onCreateInvitation, onCreateKnock, onUpdateInvitationStatus, onAuthClick, onGoToSignup, allProviders }) => {
+    const [view, setView] = useState<'requests' | 'invites' | 'history'>('requests');
+    const [isInviting, setIsInviting] = useState(false);
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [isRegistering, setIsRegistering] = useState(false);
+    const [visitorPhone, setVisitorPhone] = useState('');
+    const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
+
+    const myInvitations = useMemo(() => {
+        return invitations.filter(inv => inv.hostId === currentUser?.id || (isSuperAdmin));
+    }, [invitations, currentUser, isSuperAdmin]);
+
+    const pendingRequests = useMemo(() => myInvitations.filter(i => i.type === 'Knock' && i.status === 'Pending'), [myInvitations]);
+    const activeInvites = useMemo(() => myInvitations.filter(i => i.type === 'Invite' && (i.status === 'Active' || i.status === 'Approved')), [myInvitations]);
+    const history = useMemo(() => myInvitations.filter(i => ['Used', 'Canceled', 'Denied', 'Expired'].includes(i.status)), [myInvitations]);
+
+    const handleInviteSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!currentUser || !currentUser.id) return;
+        await onCreateInvitation({ hostId: currentUser.id, visitorPhone, visitDate });
+        setVisitorPhone('');
+        setIsInviting(false);
+    };
+
+    const handlePickContact = async () => {
+        try {
+             // @ts-ignore
+            if ('contacts' in navigator && 'select' in navigator.contacts) {
+                 // @ts-ignore
+                const contacts = await navigator.contacts.select(['tel'], { multiple: false });
+                if (contacts.length > 0 && contacts[0].tel.length > 0) {
+                    const phone = contacts[0].tel[0].replace(/[\s-]/g, '');
+                    setVisitorPhone(phone.slice(-9)); // Get last 9 digits
+                }
+            } else {
+                 alert("Contact Picker API not supported on your browser.");
+            }
+        } catch (ex) {
+            console.error("Could not select contact.", ex);
+        }
+    };
+
+    const handleKnockSubmit = async (apartment: string) => {
+        if (!currentUser || !currentUser.id) return;
+        // In a real app, you'd look up the host by apartment number. Here we'll assign to a mock host.
+        const mockHost = allProviders.find(p => p.id === 1)!;
+        await onCreateKnock({ 
+            hostId: mockHost.id,
+            hostName: mockHost.name,
+            hostApartment: apartment,
+            visitorId: currentUser.id,
+            visitorPhone: currentUser.phone!,
+            visitDate: new Date().toISOString().split('T')[0],
+        });
+        setIsSimulating(false);
+    }
+    
+    const handleRegisterPremise = async (name: string) => {
+        if (!currentUser || !currentUser.id) return;
+        await api.registerPremise(name, currentUser.id);
+        setIsRegistering(false);
+        alert(`Congratulations! You are now the Superhost for "${name}". Host management features are coming soon.`);
+    };
+
+    if (!isAuthenticated) {
+        return <div className="p-4 text-center"><button onClick={onAuthClick} className="bg-brand-primary text-white font-bold py-3 px-6 rounded-lg">Sign in to use Karibu</button></div>;
+    }
+    if (!('service' in currentUser)) {
+        return <div className="p-6 text-center bg-white rounded-lg shadow-md"><p className="mb-4">Please complete your profile to host visitors.</p><button onClick={onGoToSignup} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg">Create Profile</button></div>;
+    }
+    
+    const getStatusPill = (status: Invitation['status']) => {
+        const styles = {
+            Pending: 'bg-yellow-100 text-yellow-800',
+            Approved: 'bg-blue-100 text-blue-800',
+            Active: 'bg-blue-100 text-blue-800',
+            Used: 'bg-green-100 text-green-800',
+            Denied: 'bg-red-100 text-red-800',
+            Canceled: 'bg-gray-100 text-gray-800',
+            Expired: 'bg-gray-100 text-gray-800',
+        };
+        return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${styles[status]}`}>{status}</span>
+    }
+    
+    const renderList = (list: Invitation[]) => (
+        <div className="space-y-3">
+            {list.map(inv => (
+                <div key={inv.id} className="bg-white p-3 rounded-lg shadow-sm">
+                    {inv.type === 'Knock' && inv.status === 'Pending' ? (
+                         <div>
+                            <div className="flex items-center gap-3">
+                                <img src={inv.visitorAvatar} alt={inv.visitorName} className="w-10 h-10 rounded-full" />
+                                <div>
+                                    <p className="font-bold">{inv.visitorName}</p>
+                                    <p className="text-sm text-gray-600">is at the gate.</p>
                                 </div>
                             </div>
-                        )) : <p className="text-sm text-gray-500 text-center py-4">No invitations found.</p>}
+                            <div className="flex gap-2 mt-3">
+                                <button onClick={() => onUpdateInvitationStatus(inv.id, 'Denied')} className="flex-1 bg-red-500 text-white font-bold py-2 rounded-md text-sm">Deny</button>
+                                <button onClick={() => onUpdateInvitationStatus(inv.id, 'Approved')} className="flex-1 bg-green-500 text-white font-bold py-2 rounded-md text-sm">Approve</button>
+                            </div>
+                        </div>
+                    ) : (
+                         <div className="flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-gray-800">{inv.visitorName || `+254${inv.visitorPhone}`}</p>
+                                <p className="text-xs text-gray-500">{new Date(inv.visitDate).toLocaleDateString()} &bull; {inv.accessCode}</p>
+                            </div>
+                            {getStatusPill(inv.status)}
+                        </div>
+                    )}
+                </div>
+            ))}
+            {list.length === 0 && <p className="text-center text-gray-500 py-6">No items here.</p>}
+        </div>
+    );
+
+    return (
+        <div className="bg-gray-50 min-h-full font-sans p-4 space-y-4">
+            {isSimulating && <PremiseLandingModal onClose={() => setIsSimulating(false)} onKnock={handleKnockSubmit} isAuthenticated={isAuthenticated} onAuthClick={onAuthClick}/>}
+            {isRegistering && <RegisterPremiseModal onClose={() => setIsRegistering(false)} onRegister={handleRegisterPremise} />}
+            
+            <header>
+                <h1 className="text-3xl font-bold text-gray-900">Karibu</h1>
+                <p className="text-gray-600">Visitor Management for {currentUser.name}</p>
+            </header>
+            
+            <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setIsSimulating(true)} className="w-full bg-white p-3 rounded-lg shadow-sm font-semibold text-center hover:bg-gray-100 text-sm">Simulate Visitor</button>
+                <button onClick={() => setIsRegistering(true)} className="w-full bg-white p-3 rounded-lg shadow-sm font-semibold text-center hover:bg-gray-100 text-sm">Register Premise</button>
+            </div>
+
+
+            {isInviting ? (
+                <form onSubmit={handleInviteSubmit} className="bg-white p-4 rounded-lg shadow-md space-y-3">
+                     <h2 className="text-lg font-bold">Invite Guest</h2>
+                    <div className="flex items-center gap-2">
+                        <input type="tel" value={visitorPhone} onChange={e => setVisitorPhone(e.target.value.replace(/\D/g, '').slice(0, 9))} required placeholder="Visitor Phone (e.g. 722123456)" className="flex-grow p-2 border rounded"/>
+                        <button type="button" onClick={handlePickContact} className="p-2 border rounded bg-gray-100">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        </button>
                     </div>
+                    <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} required min={new Date().toISOString().split('T')[0]} className="w-full p-2 border rounded"/>
+                    <div className="flex gap-2">
+                        <button type="button" onClick={() => setIsInviting(false)} className="flex-1 bg-gray-200 font-bold py-2 rounded-lg">Cancel</button>
+                        <button type="submit" className="flex-1 bg-brand-dark text-white font-bold py-2 rounded-lg">Send Invite</button>
+                    </div>
+                </form>
+            ) : (
+                 <button onClick={() => setIsInviting(true)} className="w-full bg-brand-dark text-white font-bold py-3 rounded-lg shadow-md">+ Invite Guest</button>
+            )}
+
+            <div className="bg-white p-1 rounded-lg shadow-sm flex gap-1">
+                <button onClick={() => setView('requests')} className={`flex-1 p-2 rounded-md font-semibold text-sm relative ${view === 'requests' ? 'bg-brand-primary text-white' : 'text-gray-600'}`}>
+                    Requests {pendingRequests.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full">{pendingRequests.length}</span>}
+                </button>
+                <button onClick={() => setView('invites')} className={`flex-1 p-2 rounded-md font-semibold text-sm ${view === 'invites' ? 'bg-brand-primary text-white' : 'text-gray-600'}`}>Invites</button>
+                <button onClick={() => setView('history')} className={`flex-1 p-2 rounded-md font-semibold text-sm ${view === 'history' ? 'bg-brand-primary text-white' : 'text-gray-600'}`}>History</button>
+            </div>
+            
+            <div>
+                {view === 'requests' && renderList(pendingRequests)}
+                {view === 'invites' && renderList(activeInvites)}
+                {view === 'history' && renderList(history)}
+            </div>
+
+            {/* In a real app, this pass would be shown to a visitor after approval, e.g. via a notification link.
+                Here we show a user's first approved pass as an example */}
+            {myInvitations.find(i => i.status === 'Approved') && (
+                <div className="mt-6">
+                    <h3 className="font-bold text-center mb-2">My Approved Pass</h3>
+                     <div className="flex justify-center">
+                        <VisitorPass pass={myInvitations.find(i => i.status === 'Approved')!} />
+                     </div>
                 </div>
             )}
         </div>
